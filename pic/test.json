@@ -1,0 +1,108 @@
+{
+  "nodes": [
+    {
+      "id": "6ea4fab7",
+      "type": "find_image",
+      "title": "找图",
+      "x": -217.0,
+      "y": -79.0,
+      "params": {
+        "action": {
+          "default": "none",
+          "label": "找到后动作",
+          "option_labels": {
+            "click": "左键点击",
+            "double_click": "双击",
+            "move": "移动鼠标",
+            "none": "无",
+            "right_click": "右键点击"
+          },
+          "options": [
+            "none",
+            "move",
+            "click",
+            "right_click",
+            "double_click"
+          ],
+          "type": "select",
+          "value": "move"
+        },
+        "fixed_offset_x": {
+          "default": null,
+          "label": "固定偏移X",
+          "optional": true,
+          "type": "int"
+        },
+        "fixed_offset_y": {
+          "default": null,
+          "label": "固定偏移Y",
+          "optional": true,
+          "type": "int"
+        },
+        "image_path": {
+          "default": "",
+          "label": "图片路径",
+          "type": "file",
+          "value": "C:/Users/Administrator/Desktop/Lg_wudi/pic/screenshot_20260315_200007.png"
+        },
+        "random_offset": {
+          "default": 7,
+          "label": "随机偏移阈值",
+          "max": 100,
+          "min": 0,
+          "type": "int",
+          "value": 7
+        },
+        "region": {
+          "default": [
+            0,
+            0,
+            1920,
+            1080
+          ],
+          "label": "查找区域",
+          "type": "region",
+          "value": 0
+        },
+        "threshold": {
+          "default": 0.8,
+          "label": "相似度阈值",
+          "max": 1.0,
+          "min": 0.0,
+          "type": "float",
+          "value": 0.8
+        }
+      },
+      "ports": {
+        "inputs": 1,
+        "outputs": 1
+      }
+    },
+    {
+      "id": "3debb23b",
+      "type": "start_hotkey",
+      "title": "热键启动",
+      "x": -416.0,
+      "y": -80.0,
+      "params": {
+        "hotkey": {
+          "default": "F6",
+          "label": "热键",
+          "type": "string"
+        }
+      },
+      "ports": {
+        "inputs": 1,
+        "outputs": 1
+      }
+    }
+  ],
+  "connections": [
+    {
+      "from": "3debb23b",
+      "to": "6ea4fab7",
+      "from_port": 0,
+      "to_port": 0
+    }
+  ]
+}

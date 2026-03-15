@@ -1,0 +1,18 @@
+{
+  "permissions": {
+    "allow": [
+      "Skill(document-skills:docx)",
+      "Bash(pandoc:*)",
+      "Bash(cat:*)",
+      "Bash(python -c:*)",
+      "Bash(python:*)",
+      "Bash(pip install:*)",
+      "Bash(timeout 5 python:*)",
+      "mcp__MiniMax__understand_image",
+      "Bash(ls -la \"C:\\\\Users\\\\Administrator\\\\Desktop\\\\野蛮人\\\\pic\"\" 2>/dev/null || echo \"目录不存在或为空 \")",
+      "mcp__plugin_playwright_playwright__browser_navigate",
+      "mcp__chrome-devtools__navigate_page",
+      "mcp__chrome-devtools__take_screenshot"
+    ]
+  }
+}
