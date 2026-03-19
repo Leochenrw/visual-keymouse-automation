@@ -1,11 +1,11 @@
 {
   "nodes": [
     {
-      "id": "6ea4fab7",
+      "id": "059dc891",
       "type": "find_image",
       "title": "找图",
-      "x": -217.0,
-      "y": -79.0,
+      "x": -604.4412031701239,
+      "y": -126.5325329114013,
       "params": {
         "action": {
           "default": "none",
@@ -25,7 +25,7 @@
             "double_click"
           ],
           "type": "select",
-          "value": "move"
+          "value": "click"
         },
         "fixed_offset_x": {
           "default": null,
@@ -43,7 +43,103 @@
           "default": "",
           "label": "图片路径",
           "type": "file",
-          "value": "C:/Users/Administrator/Desktop/Lg_wudi/pic/screenshot_20260315_200007.png"
+          "value": "C:/Users/Administrator/Desktop/Lg_wudi/pic/查找.png"
+        },
+        "random_offset": {
+          "default": 7,
+          "label": "随机偏移阈值",
+          "max": 100,
+          "min": 0,
+          "type": "int",
+          "value": 8
+        },
+        "region": {
+          "default": [
+            0,
+            0,
+            1920,
+            1080
+          ],
+          "label": "查找区域",
+          "type": "region",
+          "value": 0
+        },
+        "threshold": {
+          "default": 0.8,
+          "label": "相似度阈值",
+          "max": 1.0,
+          "min": 0.0,
+          "type": "float",
+          "value": 0.8
+        }
+      },
+      "ports": {
+        "inputs": 1,
+        "outputs": 1
+      }
+    },
+    {
+      "id": "d46a6552",
+      "type": "start_hotkey",
+      "title": "热键启动",
+      "x": -1093.5056734813195,
+      "y": -270.56434680576746,
+      "params": {
+        "hotkey": {
+          "default": "F6",
+          "label": "热键",
+          "type": "string"
+        }
+      },
+      "ports": {
+        "inputs": 1,
+        "outputs": 1
+      }
+    },
+    {
+      "id": "18457a89",
+      "type": "find_image",
+      "title": "找图",
+      "x": -176.90488395279488,
+      "y": -120.0042985632597,
+      "params": {
+        "action": {
+          "default": "none",
+          "label": "找到后动作",
+          "option_labels": {
+            "click": "左键点击",
+            "double_click": "双击",
+            "move": "移动鼠标",
+            "none": "无",
+            "right_click": "右键点击"
+          },
+          "options": [
+            "none",
+            "move",
+            "click",
+            "right_click",
+            "double_click"
+          ],
+          "type": "select",
+          "value": "click"
+        },
+        "fixed_offset_x": {
+          "default": null,
+          "label": "固定偏移X",
+          "optional": true,
+          "type": "int"
+        },
+        "fixed_offset_y": {
+          "default": null,
+          "label": "固定偏移Y",
+          "optional": true,
+          "type": "int"
+        },
+        "image_path": {
+          "default": "",
+          "label": "图片路径",
+          "type": "file",
+          "value": "C:/Users/Administrator/Desktop/Lg_wudi/pic/搜索.png"
         },
         "random_offset": {
           "default": 7,
@@ -79,28 +175,409 @@
       }
     },
     {
-      "id": "3debb23b",
-      "type": "start_hotkey",
-      "title": "热键启动",
-      "x": -416.0,
-      "y": -80.0,
+      "id": "5918cc5c",
+      "type": "find_image",
+      "title": "找图",
+      "x": 224.4786388268298,
+      "y": -120.83028073321492,
       "params": {
-        "hotkey": {
-          "default": "F6",
-          "label": "热键",
-          "type": "string"
+        "action": {
+          "default": "none",
+          "label": "找到后动作",
+          "option_labels": {
+            "click": "左键点击",
+            "double_click": "双击",
+            "move": "移动鼠标",
+            "none": "无",
+            "right_click": "右键点击"
+          },
+          "options": [
+            "none",
+            "move",
+            "click",
+            "right_click",
+            "double_click"
+          ],
+          "type": "select",
+          "value": "click"
+        },
+        "fixed_offset_x": {
+          "default": null,
+          "label": "固定偏移X",
+          "optional": true,
+          "type": "int"
+        },
+        "fixed_offset_y": {
+          "default": null,
+          "label": "固定偏移Y",
+          "optional": true,
+          "type": "int"
+        },
+        "image_path": {
+          "default": "",
+          "label": "图片路径",
+          "type": "file",
+          "value": "C:\\Users\\Administrator\\Desktop\\Lg_wudi\\pic\\screenshot_20260315_220941.png"
+        },
+        "random_offset": {
+          "default": 7,
+          "label": "随机偏移阈值",
+          "max": 100,
+          "min": 0,
+          "type": "int",
+          "value": 9
+        },
+        "region": {
+          "default": [
+            0,
+            0,
+            1920,
+            1080
+          ],
+          "label": "查找区域",
+          "type": "region",
+          "value": 0
+        },
+        "threshold": {
+          "default": 0.8,
+          "label": "相似度阈值",
+          "max": 1.0,
+          "min": 0.0,
+          "type": "float",
+          "value": 0.8
         }
       },
       "ports": {
         "inputs": 1,
         "outputs": 1
       }
+    },
+    {
+      "id": "9b935d7b",
+      "type": "delay",
+      "title": "延时",
+      "x": -406.8124692282891,
+      "y": -125.10706236274139,
+      "params": {
+        "milliseconds": {
+          "default": 1000,
+          "label": "毫秒",
+          "type": "int",
+          "value": 1500
+        }
+      },
+      "ports": {
+        "inputs": 1,
+        "outputs": 1
+      }
+    },
+    {
+      "id": "c70c8f1a",
+      "type": "delay",
+      "title": "延时",
+      "x": 34.21322982065922,
+      "y": -119.70345120845757,
+      "params": {
+        "milliseconds": {
+          "default": 1000,
+          "label": "毫秒",
+          "type": "int",
+          "value": 1500
+        }
+      },
+      "ports": {
+        "inputs": 1,
+        "outputs": 1
+      }
+    },
+    {
+      "id": "1204663c",
+      "type": "delay",
+      "title": "延时",
+      "x": 420.913290949413,
+      "y": -123.21222709777165,
+      "params": {
+        "milliseconds": {
+          "default": 1000,
+          "label": "毫秒",
+          "type": "int",
+          "value": 1500
+        }
+      },
+      "ports": {
+        "inputs": 1,
+        "outputs": 1
+      }
+    },
+    {
+      "id": "b8fa27b3",
+      "type": "find_image",
+      "title": "找图",
+      "x": 611.3146287939231,
+      "y": -121.99641813915657,
+      "params": {
+        "action": {
+          "default": "none",
+          "label": "找到后动作",
+          "option_labels": {
+            "click": "左键点击",
+            "double_click": "双击",
+            "move": "移动鼠标",
+            "none": "无",
+            "right_click": "右键点击"
+          },
+          "options": [
+            "none",
+            "move",
+            "click",
+            "right_click",
+            "double_click"
+          ],
+          "type": "select",
+          "value": "click"
+        },
+        "fixed_offset_x": {
+          "default": null,
+          "label": "固定偏移X",
+          "optional": true,
+          "type": "int"
+        },
+        "fixed_offset_y": {
+          "default": null,
+          "label": "固定偏移Y",
+          "optional": true,
+          "type": "int"
+        },
+        "image_path": {
+          "default": "",
+          "label": "图片路径",
+          "type": "file",
+          "value": "C:\\Users\\Administrator\\Desktop\\Lg_wudi\\pic\\screenshot_20260315_222850.png"
+        },
+        "random_offset": {
+          "default": 7,
+          "label": "随机偏移阈值",
+          "max": 100,
+          "min": 0,
+          "type": "int",
+          "value": 7
+        },
+        "region": {
+          "default": [
+            0,
+            0,
+            1920,
+            1080
+          ],
+          "label": "查找区域",
+          "type": "region",
+          "value": 0
+        },
+        "threshold": {
+          "default": 0.8,
+          "label": "相似度阈值",
+          "max": 1.0,
+          "min": 0.0,
+          "type": "float",
+          "value": 0.8
+        }
+      },
+      "ports": {
+        "inputs": 1,
+        "outputs": 1
+      }
+    },
+    {
+      "id": "3cfd813b",
+      "type": "find_image",
+      "title": "找图",
+      "x": 1009.986868711891,
+      "y": -114.9277614030224,
+      "params": {
+        "action": {
+          "default": "none",
+          "label": "找到后动作",
+          "option_labels": {
+            "click": "左键点击",
+            "double_click": "双击",
+            "move": "移动鼠标",
+            "none": "无",
+            "right_click": "右键点击"
+          },
+          "options": [
+            "none",
+            "move",
+            "click",
+            "right_click",
+            "double_click"
+          ],
+          "type": "select",
+          "value": "click"
+        },
+        "fixed_offset_x": {
+          "default": null,
+          "label": "固定偏移X",
+          "optional": true,
+          "type": "int"
+        },
+        "fixed_offset_y": {
+          "default": null,
+          "label": "固定偏移Y",
+          "optional": true,
+          "type": "int"
+        },
+        "image_path": {
+          "default": "",
+          "label": "图片路径",
+          "type": "file",
+          "value": "C:\\Users\\Administrator\\Desktop\\Lg_wudi\\pic\\screenshot_20260315_222957.png"
+        },
+        "random_offset": {
+          "default": 7,
+          "label": "随机偏移阈值",
+          "max": 100,
+          "min": 0,
+          "type": "int",
+          "value": 7
+        },
+        "region": {
+          "default": [
+            0,
+            0,
+            1920,
+            1080
+          ],
+          "label": "查找区域",
+          "type": "region",
+          "value": 0
+        },
+        "threshold": {
+          "default": 0.8,
+          "label": "相似度阈值",
+          "max": 1.0,
+          "min": 0.0,
+          "type": "float",
+          "value": 0.8
+        }
+      },
+      "ports": {
+        "inputs": 1,
+        "outputs": 1
+      }
+    },
+    {
+      "id": "b0b14709",
+      "type": "delay",
+      "title": "延时",
+      "x": 812.0644801001341,
+      "y": -119.16895544470287,
+      "params": {
+        "milliseconds": {
+          "default": 1000,
+          "label": "毫秒",
+          "type": "int",
+          "value": 1500
+        }
+      },
+      "ports": {
+        "inputs": 1,
+        "outputs": 1
+      }
+    },
+    {
+      "id": "92ffa124",
+      "type": "condition",
+      "title": "条件判断",
+      "x": -849.0698528913994,
+      "y": -143.20238834755907,
+      "params": {
+        "condition": {
+          "default": "$found == True",
+          "desc": "例如: $found == True, $count > 5, $x <= 100",
+          "label": "条件表达式",
+          "type": "string"
+        },
+        "false_label": {
+          "default": "否",
+          "label": "假分支标签",
+          "type": "string"
+        },
+        "true_label": {
+          "default": "是",
+          "label": "真分支标签",
+          "type": "string"
+        }
+      },
+      "ports": {
+        "inputs": 1,
+        "outputs": 2
+      }
     }
   ],
   "connections": [
     {
-      "from": "3debb23b",
-      "to": "6ea4fab7",
+      "from": "059dc891",
+      "to": "9b935d7b",
+      "from_port": 0,
+      "to_port": 0
+    },
+    {
+      "from": "9b935d7b",
+      "to": "18457a89",
+      "from_port": 0,
+      "to_port": 0
+    },
+    {
+      "from": "18457a89",
+      "to": "c70c8f1a",
+      "from_port": 0,
+      "to_port": 0
+    },
+    {
+      "from": "c70c8f1a",
+      "to": "5918cc5c",
+      "from_port": 0,
+      "to_port": 0
+    },
+    {
+      "from": "5918cc5c",
+      "to": "1204663c",
+      "from_port": 0,
+      "to_port": 0
+    },
+    {
+      "from": "1204663c",
+      "to": "b8fa27b3",
+      "from_port": 0,
+      "to_port": 0
+    },
+    {
+      "from": "b8fa27b3",
+      "to": "b0b14709",
+      "from_port": 0,
+      "to_port": 0
+    },
+    {
+      "from": "b0b14709",
+      "to": "3cfd813b",
+      "from_port": 0,
+      "to_port": 0
+    },
+    {
+      "from": "92ffa124",
+      "to": "d46a6552",
+      "from_port": 1,
+      "to_port": 0
+    },
+    {
+      "from": "d46a6552",
+      "to": "92ffa124",
+      "from_port": 0,
+      "to_port": 0
+    },
+    {
+      "from": "92ffa124",
+      "to": "059dc891",
       "from_port": 0,
       "to_port": 0
     }

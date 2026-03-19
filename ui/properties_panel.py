@@ -104,6 +104,7 @@ class PropertiesPanel(QWidget):
 
         # 参数表单
         params = self.current_node.get('params', {})
+        node_type = self.current_node.get('type', '')
         if params:
             form_group = QGroupBox("参数")
             form_layout = QFormLayout(form_group)
@@ -114,10 +115,16 @@ class PropertiesPanel(QWidget):
                 if widget:
                     form_layout.addRow(param_def.get('label', param_name), widget)
 
+            # 条件节点添加语法提示
+            if node_type == 'condition':
+                hint_label = QLabel("支持: $变量 == 值、$变量 > 数字、$found == True")
+                hint_label.setStyleSheet("color: gray; font-size: 11px; margin-top: 5px;")
+                form_layout.addRow("", hint_label)
+
             self.content_layout.addWidget(form_group)
 
             # 找图分支节点添加测试按钮和变量提示
-            if self.current_node.get('type') == 'if_image':
+            if node_type == 'if_image':
                 self._add_find_image_test(params)
                 self._add_output_vars_hint('if_image')
 

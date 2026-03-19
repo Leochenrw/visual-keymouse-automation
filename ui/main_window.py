@@ -5,14 +5,369 @@ from PyQt5.QtWidgets import (
     QMainWindow, QDockWidget, QToolBar, QStatusBar,
     QAction, QMessageBox, QFileDialog, QWidget, QVBoxLayout
 )
-from PyQt5.QtCore import Qt, QTimer
+from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QKeySequence, QIcon
 
 from .node_library import NodeLibraryPanel
 from .node_canvas import NodeCanvas
 from .properties_panel import PropertiesPanel
 from .log_panel import LogPanel
+from .tutorial_tooltip import TutorialTooltip
 from engine import WorkflowEngine
+
+# 教程步骤定义
+TUTORIAL_STEPS = [
+    {
+        "title": "欢迎使用",
+        "description": "欢迎使用可视化键鼠自动化编辑器！本教程将引导您了解基础操作，帮助您快速上手创建自动化工作流。"
+    },
+    {
+        "title": "节点库",
+        "description": "左侧是节点库面板，包含所有可用的节点类型。节点分为触发器、动作、图像和逻辑四大类。"
+    },
+    {
+        "title": "添加节点",
+        "description": "从节点库中找到「手动启动」节点，按住鼠标左键拖拽到中央画布区域，然后松开即可创建节点。"
+    },
+    {
+        "title": "连接节点",
+        "description": "节点左侧是输入端口，右侧是输出端口。从一个输出端口拖拽连线到另一个输入端口，即可建立执行顺序。"
+    },
+    {
+        "title": "鼠标移动节点",
+        "description": "尝试添加一个「鼠标移动」节点。设置目标坐标(X, Y)，运行时鼠标会移动到指定位置。"
+    },
+    {
+        "title": "鼠标点击节点",
+        "description": "添加「鼠标点击」节点，选择左键、右键或中键。这是自动化操作中最常用的动作之一。"
+    },
+    {
+        "title": "属性面板",
+        "description": "选中节点后，右侧面板会显示该节点的可配置参数。您可以在这里修改节点标题和各种设置。"
+    },
+    {
+        "title": "键盘输入",
+        "description": "使用「键盘输入」节点可以模拟文字输入，「按键」节点可以模拟单个按键或组合键如 Ctrl+C。"
+    },
+    {
+        "title": "延时节点",
+        "description": "在两个动作之间添加「延时」节点，让工作流暂停指定时间（毫秒），等待界面响应。"
+    },
+    {
+        "title": "图像查找",
+        "description": "「找图」节点可以在屏幕上搜索指定图片，如果找到会返回坐标，用于识别界面元素位置。"
+    },
+    {
+        "title": "条件判断节点",
+        "description": "「条件」节点有两个输出端口：<br>• <b>端口0（上）</b> = 真分支（条件为是）<br>• <b>端口1（下）</b> = 假分支（条件为否）<br><br>根据条件表达式的结果决定执行哪个分支。"
+    },
+    {
+        "title": "条件表达式语法",
+        "description": "条件表达式支持以下语法：<br>• <code>$变量名 == 值</code> - 等于比较<br>• <code>$变量名 > 数字</code> - 大于<br>• <code>$变量名 < 数字</code> - 小于<br>• <code>$变量名 >= 数字</code> - 大于等于<br>• <code>$变量名 != 值</code> - 不等于<br><br>常用示例：<code>$found == True</code>、<code>$count > 5</code>"
+    },
+    {
+        "title": "条件判断实战",
+        "description": "典型场景：找图节点 → 条件判断节点<br><br>1. 找图节点搜索界面元素<br>2. 条件表达式设为 <code>$found == True</code><br>3. 真分支连接「鼠标点击」节点（点击图片）<br>4. 假分支可选择「延时」后重试或跳过<br><br>这样只有找到图片才会执行点击操作。"
+    },
+    {
+        "title": "循环节点",
+        "description": "「循环」节点有两个输出端口：<br>• <b>端口0（上）</b> = 循环体（重复执行的内容）<br>• <b>端口1（下）</b> = 循环结束后继续<br><br>参数说明：<br>• <b>count</b> - 循环次数<br>• <b>loop_var</b> - 循环变量名（如 i）"
+    },
+    {
+        "title": "循环变量使用",
+        "description": "在循环体内可以使用循环变量引用当前迭代次数：<br><br>• <code>$i</code> - 从 0 开始（0, 1, 2, 3...）<br>• <code>$i_1</code> - 从 1 开始（1, 2, 3, 4...）<br><br>示例：设置 loop_var 为 i，循环5次<br>第1次 $i=0, $i_1=1<br>第2次 $i=1, $i_1=2<br>...<br>第5次 $i=4, $i_1=5"
+    },
+    {
+        "title": "break 与 continue",
+        "description": "在循环体内可以控制流程：<br><br>• <b>跳出循环 (break)</b> - 立即退出整个循环，从端口1（下）继续执行<br>• <b>继续循环 (continue)</b> - 跳过本次循环剩余内容，进入下一次迭代<br><br><b>注意：</b>这两个节点<b>必须</b>放在循环体内使用，否则执行会报错。"
+    },
+    {
+        "title": "逻辑节点综合应用",
+        "description": "组合示例：循环找图直到找到<br><br>1. 「循环」节点（count=10，loop_var=i）<br>2. 循环体连接「找图」节点<br>3. 找图后连接「条件」节点（表达式：<code>$found == True</code>）<br>4. 真分支：「鼠标移动」→「鼠标点击」→「跳出循环」<br>5. 假分支：「延时」500ms → 自然结束（进入下一次循环）<br><br>这样最多尝试10次找图，找到就点击并停止。"
+    },
+    {
+        "title": "运行工作流",
+        "description": "按 F5 键或点击工具栏的「运行」按钮开始执行。工作流会在独立线程中运行，不会阻塞界面。"
+    },
+    {
+        "title": "保存与打开",
+        "description": "工作流可以保存为 JSON 文件（Ctrl+S），之后可以随时打开（Ctrl+O）继续编辑或运行。"
+    },
+    {
+        "title": "开始使用",
+        "description": "恭喜您完成教程！现在您可以开始创建自己的自动化工作流了。遇到问题可随时通过帮助菜单重新查看本教程，或加载示例工作流学习。"
+    }
+]
+
+# 示例工作流数据
+EXAMPLE_WORKFLOWS = {
+    "simple_loop": {
+        "name": "示例1: 简单循环",
+        "description": "循环5次鼠标点击，演示loop基础用法",
+        "data": {
+            "nodes": [
+                {
+                    "id": "start_001",
+                    "type": "start_manual",
+                    "title": "手动启动",
+                    "x": 100,
+                    "y": 200,
+                    "params": {},
+                    "ports": {"inputs": 0, "outputs": 1}
+                },
+                {
+                    "id": "loop_001",
+                    "type": "loop",
+                    "title": "循环5次",
+                    "x": 300,
+                    "y": 200,
+                    "params": {
+                        "count": {"type": "int", "default": 5, "label": "循环次数", "value": 5},
+                        "loop_var": {"type": "string", "default": "i", "label": "循环变量", "value": "i"}
+                    },
+                    "ports": {"inputs": 1, "outputs": 2}
+                },
+                {
+                    "id": "click_001",
+                    "type": "mouse_click",
+                    "title": "鼠标点击",
+                    "x": 550,
+                    "y": 150,
+                    "params": {
+                        "button": {"type": "select", "default": "left", "label": "按钮", "value": "left"}
+                    },
+                    "ports": {"inputs": 1, "outputs": 1}
+                },
+                {
+                    "id": "delay_001",
+                    "type": "delay",
+                    "title": "延时500ms",
+                    "x": 550,
+                    "y": 250,
+                    "params": {
+                        "duration": {"type": "int", "default": 1000, "label": "延时(ms)", "value": 500}
+                    },
+                    "ports": {"inputs": 1, "outputs": 1}
+                },
+                {
+                    "id": "end_001",
+                    "type": "delay",
+                    "title": "循环结束",
+                    "x": 800,
+                    "y": 300,
+                    "params": {
+                        "duration": {"type": "int", "default": 1000, "label": "延时(ms)", "value": 100}
+                    },
+                    "ports": {"inputs": 1, "outputs": 1}
+                }
+            ],
+            "connections": [
+                {"from": "start_001", "to": "loop_001", "from_port": 0, "to_port": 0},
+                {"from": "loop_001", "to": "click_001", "from_port": 0, "to_port": 0},
+                {"from": "click_001", "to": "delay_001", "from_port": 0, "to_port": 0},
+                {"from": "delay_001", "to": "loop_001", "from_port": 0, "to_port": 0},
+                {"from": "loop_001", "to": "end_001", "from_port": 1, "to_port": 0}
+            ]
+        }
+    },
+    "condition_demo": {
+        "name": "示例2: 条件判断",
+        "description": "延时后条件判断，演示condition双出口连法",
+        "data": {
+            "nodes": [
+                {
+                    "id": "start_002",
+                    "type": "start_manual",
+                    "title": "手动启动",
+                    "x": 100,
+                    "y": 200,
+                    "params": {},
+                    "ports": {"inputs": 0, "outputs": 1}
+                },
+                {
+                    "id": "delay_002",
+                    "type": "delay",
+                    "title": "等待2秒",
+                    "x": 300,
+                    "y": 200,
+                    "params": {
+                        "duration": {"type": "int", "default": 1000, "label": "延时(ms)", "value": 2000}
+                    },
+                    "ports": {"inputs": 1, "outputs": 1}
+                },
+                {
+                    "id": "condition_002",
+                    "type": "condition",
+                    "title": "条件判断",
+                    "x": 550,
+                    "y": 200,
+                    "params": {
+                        "expression": {"type": "string", "default": "", "label": "条件表达式", "value": "$count > 3"}
+                    },
+                    "ports": {"inputs": 1, "outputs": 2}
+                },
+                {
+                    "id": "click_yes",
+                    "type": "mouse_click",
+                    "title": "是-左键点击",
+                    "x": 800,
+                    "y": 150,
+                    "params": {
+                        "button": {"type": "select", "default": "left", "label": "按钮", "value": "left"}
+                    },
+                    "ports": {"inputs": 1, "outputs": 1}
+                },
+                {
+                    "id": "click_no",
+                    "type": "mouse_click",
+                    "title": "否-右键点击",
+                    "x": 800,
+                    "y": 280,
+                    "params": {
+                        "button": {"type": "select", "default": "left", "label": "按钮", "value": "right"}
+                    },
+                    "ports": {"inputs": 1, "outputs": 1}
+                }
+            ],
+            "connections": [
+                {"from": "start_002", "to": "delay_002", "from_port": 0, "to_port": 0},
+                {"from": "delay_002", "to": "condition_002", "from_port": 0, "to_port": 0},
+                {"from": "condition_002", "to": "click_yes", "from_port": 0, "to_port": 0},
+                {"from": "condition_002", "to": "click_no", "from_port": 1, "to_port": 0}
+            ]
+        }
+    },
+    "image_loop_condition": {
+        "name": "示例3: 找图+条件+循环",
+        "description": "循环找图直到找到为止，综合示例",
+        "data": {
+            "nodes": [
+                {
+                    "id": "start_003",
+                    "type": "start_manual",
+                    "title": "手动启动",
+                    "x": 50,
+                    "y": 250,
+                    "params": {},
+                    "ports": {"inputs": 0, "outputs": 1}
+                },
+                {
+                    "id": "loop_003",
+                    "type": "loop",
+                    "title": "最多找10次",
+                    "x": 250,
+                    "y": 250,
+                    "params": {
+                        "count": {"type": "int", "default": 10, "label": "循环次数", "value": 10},
+                        "loop_var": {"type": "string", "default": "i", "label": "循环变量", "value": "i"}
+                    },
+                    "ports": {"inputs": 1, "outputs": 2}
+                },
+                {
+                    "id": "find_img_003",
+                    "type": "if_image",
+                    "title": "查找目标图片",
+                    "x": 500,
+                    "y": 200,
+                    "params": {
+                        "image_path": {"type": "file", "default": "", "label": "图片路径", "value": ""},
+                        "threshold": {"type": "float", "default": 0.8, "label": "置信度", "value": 0.8},
+                        "region": {"type": "region", "default": [0, 0, 1920, 1080], "label": "搜索区域", "value": [0, 0, 1920, 1080]}
+                    },
+                    "ports": {"inputs": 1, "outputs": 1}
+                },
+                {
+                    "id": "condition_003",
+                    "type": "condition",
+                    "title": "找到了？",
+                    "x": 750,
+                    "y": 200,
+                    "params": {
+                        "expression": {"type": "string", "default": "", "label": "条件表达式", "value": "$found == True"}
+                    },
+                    "ports": {"inputs": 1, "outputs": 2}
+                },
+                {
+                    "id": "move_003",
+                    "type": "mouse_move",
+                    "title": "移动到图片位置",
+                    "x": 1000,
+                    "y": 120,
+                    "params": {
+                        "x": {"type": "int", "default": 0, "label": "X坐标", "value": 0, "optional": True},
+                        "y": {"type": "int", "default": 0, "label": "Y坐标", "value": 0, "optional": True},
+                        "use_var_x": {"type": "string", "default": "", "label": "使用变量X", "value": "$find_x"},
+                        "use_var_y": {"type": "string", "default": "", "label": "使用变量Y", "value": "$find_y"}
+                    },
+                    "ports": {"inputs": 1, "outputs": 1}
+                },
+                {
+                    "id": "click_003",
+                    "type": "mouse_click",
+                    "title": "点击图片",
+                    "x": 1200,
+                    "y": 120,
+                    "params": {
+                        "button": {"type": "select", "default": "left", "label": "按钮", "value": "left"}
+                    },
+                    "ports": {"inputs": 1, "outputs": 1}
+                },
+                {
+                    "id": "break_003",
+                    "type": "break_loop",
+                    "title": "找到，退出循环",
+                    "x": 1400,
+                    "y": 120,
+                    "params": {},
+                    "ports": {"inputs": 1, "outputs": 1}
+                },
+                {
+                    "id": "delay_retry",
+                    "type": "delay",
+                    "title": "未找到，等待500ms",
+                    "x": 1000,
+                    "y": 280,
+                    "params": {
+                        "duration": {"type": "int", "default": 1000, "label": "延时(ms)", "value": 500}
+                    },
+                    "ports": {"inputs": 1, "outputs": 1}
+                },
+                {
+                    "id": "continue_003",
+                    "type": "continue_loop",
+                    "title": "继续下一次循环",
+                    "x": 1200,
+                    "y": 280,
+                    "params": {},
+                    "ports": {"inputs": 1, "outputs": 1}
+                },
+                {
+                    "id": "end_003",
+                    "type": "delay",
+                    "title": "循环结束/完成",
+                    "x": 1600,
+                    "y": 350,
+                    "params": {
+                        "duration": {"type": "int", "default": 1000, "label": "延时(ms)", "value": 100}
+                    },
+                    "ports": {"inputs": 1, "outputs": 1}
+                }
+            ],
+            "connections": [
+                {"from": "start_003", "to": "loop_003", "from_port": 0, "to_port": 0},
+                {"from": "loop_003", "to": "find_img_003", "from_port": 0, "to_port": 0},
+                {"from": "find_img_003", "to": "condition_003", "from_port": 0, "to_port": 0},
+                {"from": "condition_003", "to": "move_003", "from_port": 0, "to_port": 0},
+                {"from": "move_003", "to": "click_003", "from_port": 0, "to_port": 0},
+                {"from": "click_003", "to": "break_003", "from_port": 0, "to_port": 0},
+                {"from": "condition_003", "to": "delay_retry", "from_port": 1, "to_port": 0},
+                {"from": "delay_retry", "to": "continue_003", "from_port": 0, "to_port": 0},
+                {"from": "break_003", "to": "end_003", "from_port": 0, "to_port": 0},
+                {"from": "loop_003", "to": "end_003", "from_port": 1, "to_port": 0}
+            ]
+        }
+    }
+}
 
 
 class MainWindow(QMainWindow):
@@ -29,6 +384,10 @@ class MainWindow(QMainWindow):
 
         # 创建执行引擎
         self.workflow_engine = WorkflowEngine()
+
+        # 教程相关
+        self.tutorial_tooltip = None
+        self.tutorial_current_step = 0
 
         # 初始化UI（必须先初始化，才能连接信号）
         self._init_ui()
@@ -202,6 +561,30 @@ class MainWindow(QMainWindow):
 
         # 帮助菜单
         help_menu = menubar.addMenu("帮助(&H)")
+
+        tutorial_action = QAction("新手引导(&T)", self)
+        tutorial_action.setShortcut("F1")
+        tutorial_action.triggered.connect(self._on_start_tutorial)
+        help_menu.addAction(tutorial_action)
+
+        help_menu.addSeparator()
+
+        # 加载示例工作流子菜单
+        examples_menu = help_menu.addMenu("加载示例工作流(&E)")
+
+        example1_action = QAction("示例1: 简单循环", self)
+        example1_action.triggered.connect(lambda: self._on_load_example("simple_loop"))
+        examples_menu.addAction(example1_action)
+
+        example2_action = QAction("示例2: 条件判断", self)
+        example2_action.triggered.connect(lambda: self._on_load_example("condition_demo"))
+        examples_menu.addAction(example2_action)
+
+        example3_action = QAction("示例3: 找图+条件+循环", self)
+        example3_action.triggered.connect(lambda: self._on_load_example("image_loop_condition"))
+        examples_menu.addAction(example3_action)
+
+        help_menu.addSeparator()
 
         about_action = QAction("关于(&A)", self)
         about_action.triggered.connect(self._on_about)
@@ -548,8 +931,180 @@ class MainWindow(QMainWindow):
             "<p>基于 PyQt5 开发的节点式自动化工具</p>"
         )
 
+    def _on_load_example(self, example_id):
+        """加载示例工作流"""
+        if example_id not in EXAMPLE_WORKFLOWS:
+            self.log_panel.log_error(f"未知示例: {example_id}")
+            return
+
+        example = EXAMPLE_WORKFLOWS[example_id]
+
+        # 询问是否保存当前工作流
+        if self.is_modified:
+            reply = QMessageBox.question(
+                self, "确认",
+                "当前工作流有未保存的更改，是否保存？",
+                QMessageBox.Save | QMessageBox.Discard | QMessageBox.Cancel
+            )
+            if reply == QMessageBox.Save:
+                self._on_save()
+            elif reply == QMessageBox.Cancel:
+                return
+
+        # 清空当前画布并加载示例
+        self.canvas.clear_canvas()
+
+        # 使用现有的文件加载逻辑
+        workflow_data = example["data"]
+
+        # 加载节点
+        from .node_library import NodeLibraryPanel
+        library = NodeLibraryPanel()
+
+        node_id_map = {}
+
+        for node_data in workflow_data.get("nodes", []):
+            node_type = node_data.get("type")
+            node_def = library.get_node_definition(node_type)
+
+            if node_def:
+                import copy
+                node_def_copy = copy.deepcopy(node_def)
+
+                # 使用示例中的标题
+                saved_title = node_data.get("title")
+                if saved_title:
+                    node_def_copy["name"] = saved_title
+
+                # 更新参数值
+                saved_params = node_data.get("params", {})
+                for key, param_data in saved_params.items():
+                    if key in node_def_copy["params"]:
+                        if isinstance(param_data, dict) and "value" in param_data:
+                            node_def_copy["params"][key]["value"] = param_data["value"]
+                        else:
+                            node_def_copy["params"][key]["value"] = param_data
+
+                # 创建节点
+                x = node_data.get("x", 0)
+                y = node_data.get("y", 0)
+                new_node = self.canvas.add_node(node_def_copy, x + 80, y + 40)
+                node_id_map[node_data.get("id")] = new_node.node_id
+            else:
+                self.log_panel.log_warning(f"未找到节点类型定义: {node_type}")
+
+        # 加载连线
+        from .node_canvas import ConnectionItem
+        for conn_data in workflow_data.get("connections", []):
+            from_id = conn_data.get("from")
+            to_id = conn_data.get("to")
+            from_port_idx = conn_data.get("from_port", 0)
+            to_port_idx = conn_data.get("to_port", 0)
+
+            new_from_id = node_id_map.get(from_id)
+            new_to_id = node_id_map.get(to_id)
+
+            if new_from_id and new_to_id:
+                from_node = self.canvas.nodes.get(new_from_id)
+                to_node = self.canvas.nodes.get(new_to_id)
+
+                if from_node and to_node:
+                    from_port = None
+                    to_port = None
+
+                    if hasattr(from_node, "output_ports") and from_port_idx < len(from_node.output_ports):
+                        from_port = from_node.output_ports[from_port_idx]
+                    elif from_port_idx == 0 and hasattr(from_node, "output_port"):
+                        from_port = from_node.output_port
+
+                    if hasattr(to_node, "input_ports") and to_port_idx < len(to_node.input_ports):
+                        to_port = to_node.input_ports[to_port_idx]
+                    elif to_port_idx == 0 and hasattr(to_node, "input_port"):
+                        to_port = to_node.input_port
+
+                    if from_port and to_port:
+                        conn = ConnectionItem(
+                            from_port, to_port,
+                            start_port_index=from_port_idx,
+                            end_port_index=to_port_idx
+                        )
+                        conn.update_path()
+                        self.canvas.scene.addItem(conn)
+                        self.canvas.connections.append(conn)
+
+                        if hasattr(from_port, "connections"):
+                            from_port.connections.append(conn)
+                        if hasattr(to_port, "connections"):
+                            to_port.connections.append(conn)
+
+        self.current_file = None
+        self.is_modified = True
+        self._update_title()
+        self.log_panel.log_info(f"已加载示例工作流: {example['name']} - {example['description']}")
+
+    # ── 教程相关方法 ──────────────────────────────────────────
+
+    def _on_start_tutorial(self):
+        """开始新手引导"""
+        self.tutorial_current_step = 0
+        self._show_tutorial_step()
+        self.log_panel.log_info("开始新手引导教程")
+
+    def _show_tutorial_step(self):
+        """显示当前教程步骤"""
+        if not TUTORIAL_STEPS:
+            return
+
+        # 创建或复用教程弹窗
+        if self.tutorial_tooltip is None:
+            self.tutorial_tooltip = TutorialTooltip(self)
+            self.tutorial_tooltip.next_requested.connect(self._on_tutorial_next)
+            self.tutorial_tooltip.prev_requested.connect(self._on_tutorial_prev)
+            self.tutorial_tooltip.skip_requested.connect(self._on_tutorial_skip)
+
+        # 更新内容
+        step_data = TUTORIAL_STEPS[self.tutorial_current_step]
+        self.tutorial_tooltip.set_step(
+            self.tutorial_current_step,
+            len(TUTORIAL_STEPS),
+            step_data["title"],
+            step_data["description"]
+        )
+
+        # 显示弹窗（使用默认位置）
+        if not self.tutorial_tooltip.isVisible():
+            self.tutorial_tooltip.place_default(self.geometry())
+            self.tutorial_tooltip.show()
+
+    def _on_tutorial_next(self):
+        """教程下一步"""
+        if self.tutorial_current_step < len(TUTORIAL_STEPS) - 1:
+            self.tutorial_current_step += 1
+            self._show_tutorial_step()
+        else:
+            # 最后一步点击完成，关闭教程
+            self._on_tutorial_skip()
+
+    def _on_tutorial_prev(self):
+        """教程上一步"""
+        if self.tutorial_current_step > 0:
+            self.tutorial_current_step -= 1
+            self._show_tutorial_step()
+
+    def _on_tutorial_skip(self):
+        """跳过/关闭教程"""
+        if self.tutorial_tooltip:
+            self.tutorial_tooltip.close()
+            self.tutorial_tooltip = None
+        self.log_panel.log_info("退出新手引导")
+
     def closeEvent(self, event):
         """关闭事件"""
+        # 关闭教程弹窗
+        if self.tutorial_tooltip:
+            self.tutorial_tooltip.close()
+            self.tutorial_tooltip = None
+
         if self.is_modified:
             reply = QMessageBox.question(
                 self, "确认",
