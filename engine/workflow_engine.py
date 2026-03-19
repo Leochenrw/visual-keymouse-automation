@@ -186,6 +186,12 @@ class WorkflowEngine(QObject):
                     current_node = next_node
                     continue
 
+                # 处理图片判断节点 - 根据找图结果选择分支
+                if node_type == 'if_image':
+                    next_node = self._get_if_image_next_node(current_node, result)
+                    current_node = next_node
+                    continue
+
                 # 处理循环节点
                 if node_type == 'loop':
                     self._execute_loop_node(current_node, exit_nodes)
@@ -221,11 +227,17 @@ class WorkflowEngine(QObject):
             # 处理变量引用
             if isinstance(value, str) and value.startswith('$'):
                 var_name = value[1:]
-                value = self.variables.get(var_name, value)
+                resolved_value = self.variables.get(var_name)
+                if resolved_value is None:
+                    self.log_message.emit('warning', f'变量 ${var_name} 未定义，保持原值 "{value}"')
+                    # 保持原值，让后续处理决定如何处理
+                else:
+                    self.log_message.emit('debug', f'变量解析: ${var_name} = {resolved_value}')
+                    value = resolved_value
             param_values[key] = value
 
         # 特殊节点不显示执行日志（由专门的方法处理）
-        if node_type not in ['condition', 'loop', 'break', 'continue']:
+        if node_type not in ['condition', 'loop', 'break', 'continue', 'if_image']:
             self.log_message.emit('info', f'执行节点: {node.get("title", node_type)}')
 
         # 根据节点类型执行
@@ -243,8 +255,6 @@ class WorkflowEngine(QObject):
             return self._action_key_input(param_values)
         elif node_type == 'delay':
             return self._action_delay(param_values)
-        elif node_type == 'find_image':
-            return self._action_find_image(param_values)
         elif node_type == 'find_color':
             return self._action_find_color(param_values)
         elif node_type == 'condition':
@@ -255,6 +265,8 @@ class WorkflowEngine(QObject):
             return {'break': True}
         elif node_type == 'continue':
             return {'continue': True}
+        elif node_type == 'if_image':
+            return self._action_if_image(param_values)
         else:
             self.log_message.emit('warning', f'未知节点类型: {node_type}')
             return None
@@ -403,6 +415,25 @@ class WorkflowEngine(QObject):
 
         return next_node
 
+    def _get_if_image_next_node(self, if_image_node, result):
+        """根据图片判断结果选择下一个节点"""
+        found = result.get('found', False)
+
+        # found 为 True 时走端口 0（找到分支）
+        # found 为 False 时走端口 1（未找到分支）
+        port_index = 0 if found else 1
+        next_node = self._find_next_node_from_port(if_image_node['id'], port_index)
+
+        # 获取分支标签
+        params = if_image_node.get('params', {})
+        true_label = params.get('true_label', {}).get('value', '找到') if isinstance(params.get('true_label'), dict) else params.get('true_label', '找到')
+        false_label = params.get('false_label', {}).get('value', '未找到') if isinstance(params.get('false_label'), dict) else params.get('false_label', '未找到')
+        branch_name = true_label if found else false_label
+
+        self.log_message.emit('info', f'图片判断结果: {branch_name}')
+
+        return next_node
+
     def _evaluate_condition(self, expression):
         """
         评估条件表达式
@@ -506,9 +537,23 @@ class WorkflowEngine(QObject):
         """鼠标移动"""
         try:
             import pyautogui
-            x = int(params.get('x', 0))
-            y = int(params.get('y', 0))
+            x = params.get('x', 0)
+            y = params.get('y', 0)
+
+            # 转换为整数（支持字符串数字和变量解析后的值）
+            try:
+                x = int(x)
+            except (ValueError, TypeError):
+                self.log_message.emit('warning', f'X坐标 "{x}" 无效，使用 0')
+                x = 0
+            try:
+                y = int(y)
+            except (ValueError, TypeError):
+                self.log_message.emit('warning', f'Y坐标 "{y}" 无效，使用 0')
+                y = 0
+
             pyautogui.moveTo(x, y)
+            self.log_message.emit('info', f'鼠标移动到 ({x}, {y})')
             return {'x': x, 'y': y}
         except Exception as e:
             raise Exception(f'鼠标移动失败: {e}')
@@ -517,15 +562,38 @@ class WorkflowEngine(QObject):
         """鼠标点击"""
         try:
             import pyautogui
+            import random
+
             button = params.get('button', 'left')
             x = params.get('x')
             y = params.get('y')
+            random_offset = params.get('random_offset', 0)
 
+            # 处理坐标
             if x is not None and y is not None:
-                pyautogui.click(int(x), int(y), button=button)
+                x = int(x)
+                y = int(y)
+
+                # 添加随机偏移
+                if random_offset and random_offset > 0:
+                    x += random.randint(-random_offset, random_offset)
+                    y += random.randint(-random_offset, random_offset)
+
+                pyautogui.click(x, y, button=button)
             else:
-                pyautogui.click(button=button)
-            return {'button': button}
+                # 使用当前鼠标位置
+                if random_offset and random_offset > 0:
+                    # 获取当前位置并添加偏移
+                    current_x, current_y = pyautogui.position()
+                    x = current_x + random.randint(-random_offset, random_offset)
+                    y = current_y + random.randint(-random_offset, random_offset)
+                    pyautogui.click(x, y, button=button)
+                else:
+                    pyautogui.click(button=button)
+                    x = None
+                    y = None
+
+            return {'button': button, 'x': x, 'y': y}
         except Exception as e:
             raise Exception(f'鼠标点击失败: {e}')
 
@@ -563,22 +631,27 @@ class WorkflowEngine(QObject):
 
         return {'milliseconds': milliseconds}
 
-    def _action_find_image(self, params):
-        """找图"""
+    def _action_if_image(self, params):
+        """图片判断 - 找图并根据结果分支"""
         try:
             import cv2
             import numpy as np
             import pyautogui
-            import random
 
             image_path = params.get('image_path', '')
             threshold = float(params.get('threshold', 0.8))
+            region = params.get('region', [0, 0, 1920, 1080])
+
+            # 防御性处理：确保 region 是正确的列表格式
+            if not isinstance(region, (list, tuple)) or len(region) != 4:
+                self.log_message.emit('warning', f'region 参数格式错误: {region}，使用默认值 [0, 0, 1920, 1080]')
+                region = [0, 0, 1920, 1080]
 
             if not image_path:
                 raise Exception('图片路径为空')
 
-            # 截图
-            screenshot = pyautogui.screenshot()
+            # 截图（限定区域）
+            screenshot = pyautogui.screenshot(region=region)
             screenshot = cv2.cvtColor(np.array(screenshot), cv2.COLOR_RGB2BGR)
 
             # 读取模板（支持中文路径）
@@ -595,58 +668,58 @@ class WorkflowEngine(QObject):
             min_val, max_val, min_loc, max_loc = cv2.minMaxLoc(result)
 
             if max_val >= threshold:
-                # 计算基础坐标（图片中心）
-                base_x = max_loc[0] + template.shape[1] // 2
-                base_y = max_loc[1] + template.shape[0] // 2
+                # 计算中心坐标（相对于屏幕）
+                x = max_loc[0] + template.shape[1] // 2 + region[0]
+                y = max_loc[1] + template.shape[0] // 2 + region[1]
 
-                # 获取偏移参数
-                random_offset = int(params.get('random_offset', 7))
-                fixed_offset_x = params.get('fixed_offset_x')
-                fixed_offset_y = params.get('fixed_offset_y')
-
-                # 计算最终坐标
-                if fixed_offset_x is not None and fixed_offset_y is not None:
-                    # 使用固定偏移
-                    x = base_x + int(fixed_offset_x)
-                    y = base_y + int(fixed_offset_y)
-                    offset_info = f"固定偏移({fixed_offset_x}, {fixed_offset_y})"
-                elif random_offset > 0:
-                    # 使用随机偏移
-                    x = base_x + random.randint(-random_offset, random_offset)
-                    y = base_y + random.randint(-random_offset, random_offset)
-                    offset_info = f"随机偏移±{random_offset}"
-                else:
-                    x, y = base_x, base_y
-                    offset_info = "无偏移"
-
-                # 存储变量
+                # 设置变量
+                self.variables['found'] = True
                 self.variables['find_x'] = x
                 self.variables['find_y'] = y
-                self.variables['found'] = True
+                self.variables['confidence'] = max_val
 
-                # 执行找到后的动作
-                action = params.get('action', 'none')
-                if action != 'none':
-                    if action == 'move':
-                        pyautogui.moveTo(x, y)
-                        self.log_message.emit('info', f'找到图片，移动鼠标到 ({x}, {y}) [{offset_info}]')
-                    elif action == 'click':
-                        pyautogui.click(x, y)
-                        self.log_message.emit('info', f'找到图片，左键点击 ({x}, {y}) [{offset_info}]')
-                    elif action == 'right_click':
-                        pyautogui.click(x, y, button='right')
-                        self.log_message.emit('info', f'找到图片，右键点击 ({x}, {y}) [{offset_info}]')
-                    elif action == 'double_click':
-                        pyautogui.doubleClick(x, y)
-                        self.log_message.emit('info', f'找到图片，双击 ({x}, {y}) [{offset_info}]')
+                self.log_message.emit('info', f'图片判断: 找到图片 ({x}, {y}), 置信度 {max_val:.3f}')
+
+                # 获取自动移动和点击参数
+                auto_move = params.get('auto_move', False)
+                offset_x = int(params.get('offset_x', 0))
+                offset_y = int(params.get('offset_y', 0))
+                auto_click = params.get('auto_click', False)
+                click_button = params.get('click_button', 'left')
+                click_delay = int(params.get('click_delay', 0))
+
+                target_x = x + offset_x
+                target_y = y + offset_y
+
+                # 自动移动鼠标
+                if auto_move:
+                    pyautogui.moveTo(target_x, target_y)
+                    self.log_message.emit('info', f'鼠标移动到 ({target_x}, {target_y})')
+
+                # 自动点击（始终使用目标坐标）
+                if auto_click:
+                    if click_delay > 0:
+                        time.sleep(click_delay / 1000.0)
+
+                    if click_button == 'left':
+                        pyautogui.click(target_x, target_y)
+                        self.log_message.emit('info', f'执行左键点击 ({target_x}, {target_y})')
+                    elif click_button == 'right':
+                        pyautogui.rightClick(target_x, target_y)
+                        self.log_message.emit('info', f'执行右键点击 ({target_x}, {target_y})')
+                    elif click_button == 'double':
+                        pyautogui.doubleClick(target_x, target_y)
+                        self.log_message.emit('info', f'执行双击 ({target_x}, {target_y})')
 
                 return {'found': True, 'x': x, 'y': y, 'confidence': max_val}
             else:
                 self.variables['found'] = False
+                self.variables['confidence'] = max_val
+                self.log_message.emit('info', f'图片判断: 未找到图片 (最高置信度 {max_val:.3f})')
                 return {'found': False, 'confidence': max_val}
 
         except Exception as e:
-            raise Exception(f'找图失败: {e}')
+            raise Exception(f'图片判断失败: {e}')
 
     def _action_find_color(self, params):
         """找色"""
@@ -852,6 +925,19 @@ class WorkflowEngine(QObject):
                         self.log_message.emit('info', f'条件判断(用户选择): {branch_name}')
                     else:
                         next_node = self._get_condition_next_node(current_node, result)
+                    current_node = next_node
+                    continue
+
+                # 处理图片判断节点 - 根据找图结果选择分支
+                if node_type == 'if_image':
+                    # 检查是否有用户指定的分支选择
+                    if node_id in self._branch_choices:
+                        port_index = self._branch_choices[node_id]
+                        next_node = self._find_next_node_from_port(node_id, port_index)
+                        branch_name = "找到" if port_index == 0 else "未找到"
+                        self.log_message.emit('info', f'图片判断(用户选择): {branch_name}')
+                    else:
+                        next_node = self._get_if_image_next_node(current_node, result)
                     current_node = next_node
                     continue
 

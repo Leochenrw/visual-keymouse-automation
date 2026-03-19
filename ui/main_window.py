@@ -313,9 +313,16 @@ class MainWindow(QMainWindow):
         # 更新画布中的节点参数
         node_id = node_data.get('id')
         if node_id and node_id in self.canvas.nodes:
-            self.canvas.nodes[node_id].params = node_data.get('params', {})
+            node = self.canvas.nodes[node_id]
+            node.params = node_data.get('params', {})
+
+            # 更新节点标题（如果发生了变化）
+            new_title = node_data.get('title', '')
+            if new_title and new_title != node.title:
+                node.set_title(new_title)
+
             self.canvas.canvas_changed.emit()
-            self.log_panel.log_info(f"节点 {node_data.get('title')} 参数已更新")
+            self.log_panel.log_info(f"节点 '{new_title}' 参数已更新")
 
     def _on_new(self):
         """新建工作流"""
@@ -371,6 +378,11 @@ class MainWindow(QMainWindow):
                 if node_def:
                     # 深拷贝节点定义，避免修改原始定义
                     node_def_copy = copy.deepcopy(node_def)
+
+                    # 使用保存的标题（如果有）
+                    saved_title = node_data.get('title')
+                    if saved_title:
+                        node_def_copy['name'] = saved_title
 
                     # 更新参数值
                     saved_params = node_data.get('params', {})

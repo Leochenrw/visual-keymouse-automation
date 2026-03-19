@@ -12,12 +12,6 @@ import json
 
 # 节点输出定义 - 用于Mock数据生成
 NODE_OUTPUTS = {
-    "find_image": {
-        "find_x": {"type": "int", "label": "找到图片的X坐标"},
-        "find_y": {"type": "int", "label": "找到图片的Y坐标"},
-        "found": {"type": "bool", "label": "是否找到"},
-        "confidence": {"type": "float", "label": "匹配置信度"}
-    },
     "find_color": {
         "color_x": {"type": "int", "label": "找到颜色的X坐标"},
         "color_y": {"type": "int", "label": "找到颜色的Y坐标"},
@@ -58,6 +52,12 @@ NODE_OUTPUTS = {
     },
     "continue": {
         "continue": {"type": "bool", "label": "是否继续"}
+    },
+    "if_image": {
+        "found": {"type": "bool", "label": "是否找到"},
+        "find_x": {"type": "int", "label": "找到图片的X坐标"},
+        "find_y": {"type": "int", "label": "找到图片的Y坐标"},
+        "confidence": {"type": "float", "label": "匹配置信度"}
     }
 }
 
@@ -166,8 +166,8 @@ class NodeLibraryPanel(QWidget):
                     "desc": "移动鼠标到指定坐标",
                     "color": "#4CAF50",
                     "params": {
-                        "x": {"type": "int", "default": 0, "label": "X坐标"},
-                        "y": {"type": "int", "default": 0, "label": "Y坐标"}
+                        "x": {"type": "string", "default": "0", "label": "X坐标", "desc": "支持数字或变量如 $find_x"},
+                        "y": {"type": "string", "default": "0", "label": "Y坐标", "desc": "支持数字或变量如 $find_y"}
                     }
                 },
                 {
@@ -178,8 +178,9 @@ class NodeLibraryPanel(QWidget):
                     "color": "#4CAF50",
                     "params": {
                         "button": {"type": "select", "default": "left", "label": "按钮", "options": ["left", "right", "middle"]},
-                        "x": {"type": "int", "default": 0, "label": "X坐标(可选)", "optional": True},
-                        "y": {"type": "int", "default": 0, "label": "Y坐标(可选)", "optional": True}
+                        "x": {"type": "int", "default": None, "label": "X坐标(空表示当前位置)", "optional": True},
+                        "y": {"type": "int", "default": None, "label": "Y坐标(空表示当前位置)", "optional": True},
+                        "random_offset": {"type": "int", "default": 0, "label": "随机偏移范围", "min": 0, "max": 100, "desc": "在坐标周围随机偏移的像素范围，0表示不偏移"}
                     }
                 },
                 {
@@ -215,31 +216,27 @@ class NodeLibraryPanel(QWidget):
             ],
             "图像": [
                 {
-                    "type": "find_image",
-                    "name": "找图",
+                    "type": "if_image",
+                    "name": "找图分支",
                     "icon": "🖼️",
-                    "desc": "在屏幕中查找图片",
-                    "color": "#9C27B0",
+                    "desc": "查找图片并根据结果分支，找到后输出坐标变量$find_x/$find_y和$found",
+                    "color": "#FF9800",
                     "params": {
                         "image_path": {"type": "file", "default": "", "label": "图片路径"},
                         "threshold": {"type": "float", "default": 0.8, "label": "相似度阈值", "min": 0.0, "max": 1.0},
                         "region": {"type": "region", "default": [0, 0, 1920, 1080], "label": "查找区域"},
-                        "action": {
-                            "type": "select",
-                            "default": "none",
-                            "label": "找到后动作",
-                            "options": ["none", "move", "click", "right_click", "double_click"],
-                            "option_labels": {
-                                "none": "无",
-                                "move": "移动鼠标",
-                                "click": "左键点击",
-                                "right_click": "右键点击",
-                                "double_click": "双击"
-                            }
-                        },
-                        "random_offset": {"type": "int", "default": 7, "label": "随机偏移阈值", "min": 0, "max": 100},
-                        "fixed_offset_x": {"type": "int", "default": None, "label": "固定偏移X", "optional": True},
-                        "fixed_offset_y": {"type": "int", "default": None, "label": "固定偏移Y", "optional": True}
+                        "true_label": {"type": "string", "default": "找到", "label": "找到分支标签"},
+                        "false_label": {"type": "string", "default": "未找到", "label": "未找到分支标签"},
+                        "auto_move": {"type": "boolean", "default": False, "label": "找到后自动移动鼠标"},
+                        "offset_x": {"type": "int", "default": 0, "label": "X偏移"},
+                        "offset_y": {"type": "int", "default": 0, "label": "Y偏移"},
+                        "auto_click": {"type": "boolean", "default": False, "label": "找到后自动点击"},
+                        "click_button": {"type": "select", "default": "left", "label": "点击按钮", "options": ["left", "right", "double"]},
+                        "click_delay": {"type": "int", "default": 0, "min": 0, "label": "点击前延时(毫秒)"}
+                    },
+                    "ports": {
+                        "inputs": 1,
+                        "outputs": 2
                     }
                 },
                 {
@@ -310,7 +307,7 @@ class NodeLibraryPanel(QWidget):
                         "inputs": 1,
                         "outputs": 1
                     }
-                }
+                },
             ]
         }
 

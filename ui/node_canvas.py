@@ -112,6 +112,11 @@ class NodeItem(QGraphicsRectItem):
             else:
                 self.setPen(self._default_pen)
 
+    def set_title(self, new_title):
+        """设置节点标题"""
+        self.title = new_title
+        self.title_text.setPlainText(new_title)
+
     def _update_border_for_selection(self):
         """根据选中状态更新边框（考虑执行状态优先级）"""
         if self.execution_state == 'default':
@@ -181,6 +186,8 @@ class NodeItem(QGraphicsRectItem):
                 labels = ["是", "否"]
             elif self.node_type == "loop":
                 labels = ["循环", "结束"]
+            elif self.node_type == "if_image":
+                labels = ["找到", "未找到"]
 
             for i in range(num_outputs):
                 port_y = body_start + (body_height / num_outputs) * (i + 0.5)

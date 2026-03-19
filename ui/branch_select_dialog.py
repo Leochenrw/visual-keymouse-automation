@@ -212,15 +212,19 @@ def find_conditions_on_path(engine, start_node_id, target_node_id):
     if path:
         for node_id in path:
             node = engine.nodes.get(node_id)
-            if node and node['type'] == 'condition':
+            if node and node['type'] in ('condition', 'if_image'):
                 params = node.get('params', {})
                 expression = ''
-                if 'condition' in params:
+                if node['type'] == 'condition' and 'condition' in params:
                     cond_def = params['condition']
                     if isinstance(cond_def, dict):
                         expression = cond_def.get('value', cond_def.get('default', ''))
                     else:
                         expression = str(cond_def)
+                elif node['type'] == 'if_image' and 'image_path' in params:
+                    path_def = params['image_path']
+                    img_path = path_def.get('value', path_def.get('default', '')) if isinstance(path_def, dict) else str(path_def)
+                    expression = f"图片: {img_path}"
 
                 conditions.append({
                     'node_id': node_id,

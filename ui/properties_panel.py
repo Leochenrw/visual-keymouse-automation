@@ -90,6 +90,18 @@ class PropertiesPanel(QWidget):
 
         self.content_layout.addSpacing(10)
 
+        # 节点重命名输入框
+        rename_group = QGroupBox("节点名称")
+        rename_layout = QFormLayout(rename_group)
+        self.title_input = QLineEdit()
+        self.title_input.setText(self.current_node.get('title', ''))
+        self.title_input.setPlaceholderText("输入节点名称")
+        self.title_input.editingFinished.connect(self._on_title_changed)
+        rename_layout.addRow("名称:", self.title_input)
+        self.content_layout.addWidget(rename_group)
+
+        self.content_layout.addSpacing(5)
+
         # 参数表单
         params = self.current_node.get('params', {})
         if params:
@@ -104,9 +116,10 @@ class PropertiesPanel(QWidget):
 
             self.content_layout.addWidget(form_group)
 
-            # 找图节点添加测试按钮
-            if self.current_node.get('type') == 'find_image':
+            # 找图分支节点添加测试按钮和变量提示
+            if self.current_node.get('type') == 'if_image':
                 self._add_find_image_test(params)
+                self._add_output_vars_hint('if_image')
 
         else:
             no_params = QLabel("(此节点无参数)")
@@ -324,6 +337,10 @@ class PropertiesPanel(QWidget):
 
     def _get_widget_value(self, param_name, param_type):
         """获取控件值"""
+        # 处理 region 类型
+        if param_type == 'region':
+            return self._get_region_value()
+
         # 查找对应的控件
         for child in self.content_widget.findChildren(QWidget):
             if child.property('param_name') == param_name:
@@ -368,6 +385,24 @@ class PropertiesPanel(QWidget):
 
         self.params_changed.emit(self.current_node)
         QMessageBox.information(self, "成功", "参数已应用")
+
+    def _on_title_changed(self):
+        """节点名称改变"""
+        if not self.current_node:
+            return
+
+        new_title = self.title_input.text().strip()
+        if not new_title:
+            new_title = self.current_node.get('title', '未命名节点')
+            self.title_input.setText(new_title)
+            return
+
+        # 更新节点数据中的标题
+        old_title = self.current_node.get('title', '')
+        if new_title != old_title:
+            self.current_node['title'] = new_title
+            # 更新节点类型标题显示
+            self.params_changed.emit(self.current_node)
 
     def _add_find_image_test(self, params):
         """添加找图测试按钮"""
@@ -415,3 +450,27 @@ class PropertiesPanel(QWidget):
                     coords.append(child.value())
                     break
         return coords if len(coords) == 4 else None
+
+    def _add_output_vars_hint(self, node_type):
+        """添加输出变量提示"""
+        if node_type == 'if_image':
+            group = QGroupBox("输出变量")
+            layout = QVBoxLayout()
+
+            vars_text = """
+            <b>找到图片时：</b><br>
+            • $find_x - 图片中心X坐标<br>
+            • $find_y - 图片中心Y坐标<br>
+            • $found = True<br>
+            • $confidence - 匹配置信度<br><br>
+            <b>未找到时：</b><br>
+            • $found = False<br>
+            • $confidence - 最高匹配置信度
+            """
+
+            label = QLabel(vars_text)
+            label.setWordWrap(True)
+            label.setStyleSheet("QLabel { color: #666; font-size: 12px; }")
+            layout.addWidget(label)
+            group.setLayout(layout)
+            self.content_layout.addWidget(group)
