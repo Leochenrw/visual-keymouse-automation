@@ -439,10 +439,12 @@ class NodeCanvas(QGraphicsView):
             self.setCursor(Qt.ClosedHandCursor)
             event.accept()
         elif event.button() == Qt.LeftButton:
-            # 检查是否点击了端口
-            item = self.itemAt(event.pos())
-            if isinstance(item, PortItem):
-                self._start_connection(item, event.pos())
+            # 检查是否点击了端口（遍历所有命中项，避免标签遮挡端口的问题）
+            items = self.items(event.pos())
+            port_item = next((i for i in items if isinstance(i, PortItem)), None)
+            item = port_item or (items[0] if items else None)
+            if port_item:
+                self._start_connection(port_item, event.pos())
                 event.accept()
             else:
                 # 点击空白处时清除错误高亮状态

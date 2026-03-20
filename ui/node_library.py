@@ -276,7 +276,7 @@ class NodeLibraryPanel(QWidget):
                     "desc": "重复执行循环体内的节点",
                     "color": "#FF9800",
                     "params": {
-                        "count": {"type": "int", "default": 3, "min": 1, "max": 9999, "label": "循环次数"},
+                        "count": {"type": "int", "default": 3, "min": 0, "max": 9999, "label": "循环次数（0=无限）"},
                         "loop_var": {"type": "string", "default": "i", "label": "循环变量名", "desc": "可在循环体内使用 $i, $i+1 等"}
                     },
                     "ports": {

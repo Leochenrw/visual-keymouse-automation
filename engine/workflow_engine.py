@@ -357,8 +357,10 @@ class WorkflowEngine(QObject):
             'current': 0
         })
 
+        infinite = (count == 0)
         try:
-            for i in range(count):
+            i = 0
+            while infinite or i < count:
                 if self.stop_requested:
                     break
 
@@ -366,7 +368,10 @@ class WorkflowEngine(QObject):
                 self.variables[f'__loop_{loop_var}__'] = i
                 self.variables[f'__loop_{loop_var}_1__'] = i + 1  # 支持 $i+1 的简便写法
 
-                self.log_message.emit('info', f'循环第 {i+1}/{count} 次迭代')
+                if infinite:
+                    self.log_message.emit('info', f'循环第 {i+1} 次迭代（无限循环）')
+                else:
+                    self.log_message.emit('info', f'循环第 {i+1}/{count} 次迭代')
 
                 # 重置控制标志
                 self._break_requested = False
@@ -387,7 +392,8 @@ class WorkflowEngine(QObject):
                 # continue 会自动继续下一次迭代
                 if self._continue_requested:
                     self._continue_requested = False
-                    continue
+
+                i += 1
 
         finally:
             # 弹出循环栈
