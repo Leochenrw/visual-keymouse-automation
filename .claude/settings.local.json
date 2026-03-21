@@ -12,7 +12,27 @@
       "Bash(ls -la \"C:\\\\Users\\\\Administrator\\\\Desktop\\\\野蛮人\\\\pic\"\" 2>/dev/null || echo \"目录不存在或为空 \")",
       "mcp__plugin_playwright_playwright__browser_navigate",
       "mcp__chrome-devtools__navigate_page",
-      "mcp__chrome-devtools__take_screenshot"
+      "mcp__chrome-devtools__take_screenshot",
+      "Bash(ls:*)",
+      "Read(//c/Users/Administrator/Desktop/Lg_wudi/**)",
+      "Bash(git -C \"/c/Users/Administrator/Desktop/Lg_wudi\" log --oneline -5)",
+      "Bash(pkill:*)",
+      "Read(//tmp/claude/C--Users-Administrator-Desktop-Lg-wudi/e35b5db0-7b91-49c2-9a20-493fde12c7b6/tasks/**)",
+      "Read(//c/Users/Administrator/Desktop/Lg_wudi/$APPDATA/claude/C--Users-Administrator-Desktop-Lg-wudi/e35b5db0-7b91-49c2-9a20-493fde12c7b6/tasks/**)",
+      "Bash(tasklist:*)",
+      "Bash(taskkill:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(pip show:*)",
+      "Bash(git checkout:*)",
+      "Bash(git push:*)",
+      "WebSearch",
+      "WebFetch(domain:smartscope.blog)",
+      "WebFetch(domain:claudefa.st)",
+      "WebFetch(domain:www.heyuan110.com)",
+      "WebFetch(domain:prg.sh)",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:shipyard.build)"
     ]
   }
 }

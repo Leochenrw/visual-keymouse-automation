@@ -1,0 +1,257 @@
+{
+  "nodes": [
+    {
+      "id": "b780a60f",
+      "type": "async_listener",
+      "title": "异步监听",
+      "x": -398.2222222222222,
+      "y": -244.33333333333337,
+      "params": {
+        "listen_type": {
+          "type": "select",
+          "default": "image",
+          "label": "监听类型",
+          "options": [
+            "image",
+            "color"
+          ],
+          "value": "image"
+        },
+        "image_path": {
+          "type": "file",
+          "default": "",
+          "label": "图片路径（image类型）",
+          "value": "C:/Users/Administrator/Desktop/Lg_wudi/pic/screenshot_20260320_145010.png"
+        },
+        "threshold": {
+          "type": "float",
+          "default": 0.8,
+          "label": "匹配阈值",
+          "min": 0.0,
+          "max": 1.0,
+          "value": 0.8
+        },
+        "color": {
+          "type": "color",
+          "default": "#FF0000",
+          "label": "目标颜色（color类型）",
+          "value": "#FF0000"
+        },
+        "color_tolerance": {
+          "type": "int",
+          "default": 10,
+          "label": "颜色容差",
+          "min": 0,
+          "max": 255,
+          "value": 10
+        },
+        "region": {
+          "type": "region",
+          "default": [
+            0,
+            0,
+            1920,
+            1080
+          ],
+          "label": "监听区域",
+          "value": [
+            0,
+            0,
+            1920,
+            1080
+          ]
+        },
+        "interval": {
+          "type": "int",
+          "default": 500,
+          "label": "检测间隔(毫秒)",
+          "min": 50,
+          "max": 10000,
+          "value": 500
+        },
+        "action_on_main": {
+          "type": "select",
+          "default": "pause",
+          "label": "触发时对主流程的操作",
+          "options": [
+            "pause",
+            "stop"
+          ],
+          "value": "stop"
+        },
+        "cooldown": {
+          "type": "int",
+          "default": 2000,
+          "label": "触发后冷却(毫秒)",
+          "min": 0,
+          "max": 60000,
+          "value": 2000
+        }
+      },
+      "ports": {
+        "inputs": 0,
+        "outputs": 1
+      }
+    },
+    {
+      "id": "3093fd0c",
+      "type": "mouse_move",
+      "title": "鼠标移动",
+      "x": -64.66666666666667,
+      "y": -253.33333333333331,
+      "params": {
+        "x": {
+          "type": "string",
+          "default": "0",
+          "label": "X坐标",
+          "desc": "支持数字或变量如 $find_x",
+          "value": "100"
+        },
+        "y": {
+          "type": "string",
+          "default": "0",
+          "label": "Y坐标",
+          "desc": "支持数字或变量如 $find_y",
+          "value": "100"
+        }
+      },
+      "ports": {
+        "inputs": 1,
+        "outputs": 1
+      }
+    },
+    {
+      "id": "47885857",
+      "type": "start_hotkey",
+      "title": "热键启动",
+      "x": -511.0,
+      "y": 39.0,
+      "params": {
+        "hotkey": {
+          "type": "string",
+          "default": "F6",
+          "label": "热键",
+          "value": {
+            "default": "F6",
+            "label": "热键",
+            "type": "string"
+          }
+        }
+      },
+      "ports": {
+        "inputs": 1,
+        "outputs": 1
+      }
+    },
+    {
+      "id": "7b570f48",
+      "type": "loop",
+      "title": "循环",
+      "x": -269.0,
+      "y": 39.0,
+      "params": {
+        "count": {
+          "type": "int",
+          "default": 3,
+          "min": 0,
+          "max": 9999,
+          "label": "循环次数（0=无限）",
+          "value": 0
+        },
+        "loop_var": {
+          "type": "string",
+          "default": "i",
+          "label": "循环变量名",
+          "desc": "可在循环体内使用 $i, $i+1 等",
+          "value": "i"
+        }
+      },
+      "ports": {
+        "inputs": 1,
+        "outputs": 2
+      }
+    },
+    {
+      "id": "ae21ec8e",
+      "type": "mouse_move",
+      "title": "鼠标移动",
+      "x": -57.0,
+      "y": 47.0,
+      "params": {
+        "x": {
+          "type": "string",
+          "default": "0",
+          "label": "X坐标",
+          "desc": "支持数字或变量如 $find_x",
+          "value": {
+            "default": "0",
+            "desc": "支持数字或变量如 $find_x",
+            "label": "X坐标",
+            "type": "string"
+          }
+        },
+        "y": {
+          "type": "string",
+          "default": "0",
+          "label": "Y坐标",
+          "desc": "支持数字或变量如 $find_y",
+          "value": {
+            "default": "0",
+            "desc": "支持数字或变量如 $find_y",
+            "label": "Y坐标",
+            "type": "string"
+          }
+        }
+      },
+      "ports": {
+        "inputs": 1,
+        "outputs": 1
+      }
+    },
+    {
+      "id": "f4a5f02c",
+      "type": "key_press",
+      "title": "键盘按键",
+      "x": 166.0,
+      "y": -263.0,
+      "params": {
+        "key": {
+          "default": "enter",
+          "label": "按键",
+          "type": "string",
+          "value": "alt+f4"
+        }
+      },
+      "ports": {
+        "inputs": 1,
+        "outputs": 1
+      }
+    }
+  ],
+  "connections": [
+    {
+      "from": "b780a60f",
+      "to": "3093fd0c",
+      "from_port": 0,
+      "to_port": 0
+    },
+    {
+      "from": "47885857",
+      "to": "7b570f48",
+      "from_port": 0,
+      "to_port": 0
+    },
+    {
+      "from": "7b570f48",
+      "to": "ae21ec8e",
+      "from_port": 0,
+      "to_port": 0
+    },
+    {
+      "from": "3093fd0c",
+      "to": "f4a5f02c",
+      "from_port": 0,
+      "to_port": 0
+    }
+  ]
+}

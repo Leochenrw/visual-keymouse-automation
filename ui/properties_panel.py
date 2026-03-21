@@ -124,8 +124,9 @@ class PropertiesPanel(QWidget):
             self.content_layout.addWidget(form_group)
 
             # 找图分支节点添加测试按钮和变量提示
-            if node_type == 'if_image':
+            if node_type in ('if_image', 'async_listener'):
                 self._add_find_image_test(params)
+            if node_type == 'if_image':
                 self._add_output_vars_hint('if_image')
 
         else:

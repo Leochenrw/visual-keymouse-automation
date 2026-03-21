@@ -1,6 +1,8 @@
 """
 主窗口 - 应用程序主容器
 """
+import os
+
 from PyQt5.QtWidgets import (
     QMainWindow, QDockWidget, QToolBar, QStatusBar,
     QAction, QMessageBox, QFileDialog, QWidget, QVBoxLayout
@@ -14,6 +16,10 @@ from .properties_panel import PropertiesPanel
 from .log_panel import LogPanel
 from .tutorial_tooltip import TutorialTooltip
 from engine import WorkflowEngine
+
+# 默认脚本目录
+_SCRIPTS_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "scripts")
+os.makedirs(_SCRIPTS_DIR, exist_ok=True)
 
 # 教程步骤定义
 TUTORIAL_STEPS = [
@@ -726,10 +732,15 @@ class MainWindow(QMainWindow):
         self._update_title()
         self.log_panel.log_info("新建工作流")
 
+        # 新建后重置历史
+        self.canvas._history = []
+        self.canvas._history_index = -1
+        self.canvas._push_history()
+
     def _on_open(self):
         """打开工作流"""
         file_path, _ = QFileDialog.getOpenFileName(
-            self, "打开工作流", "", "JSON文件 (*.json);;所有文件 (*.*)"
+            self, "打开工作流", _SCRIPTS_DIR, "JSON文件 (*.json);;所有文件 (*.*)"
         )
         if file_path:
             self._load_from_file(file_path)
@@ -840,6 +851,11 @@ class MainWindow(QMainWindow):
             self._update_title()
             self.log_panel.log_info(f"打开文件: {file_path}")
 
+            # 以加载后的状态为历史起点，清除旧的历史栈
+            self.canvas._history = []
+            self.canvas._history_index = -1
+            self.canvas._push_history()
+
         except Exception as e:
             self.log_panel.log_error(f"加载失败: {e}")
             QMessageBox.critical(self, "错误", f"加载失败: {e}")
@@ -853,8 +869,9 @@ class MainWindow(QMainWindow):
 
     def _on_save_as(self):
         """另存为"""
+        default_path = os.path.join(_SCRIPTS_DIR, "未命名.json")
         file_path, _ = QFileDialog.getSaveFileName(
-            self, "保存工作流", "", "JSON文件 (*.json);;所有文件 (*.*)"
+            self, "保存工作流", default_path, "JSON文件 (*.json);;所有文件 (*.*)"
         )
         if file_path:
             self.current_file = file_path
@@ -1041,6 +1058,11 @@ class MainWindow(QMainWindow):
         self.is_modified = True
         self._update_title()
         self.log_panel.log_info(f"已加载示例工作流: {example['name']} - {example['description']}")
+
+        # 以加载后的状态为历史起点
+        self.canvas._history = []
+        self.canvas._history_index = -1
+        self.canvas._push_history()
 
     # ── 教程相关方法 ──────────────────────────────────────────
 

@@ -4,7 +4,161 @@
 import time
 import threading
 import re
+import random
 from PyQt5.QtCore import QObject, pyqtSignal
+
+
+class ListenerContext:
+    """异步监听线程：独立监控屏幕条件，触发时干预主流程并执行子流程"""
+
+    def __init__(self, engine, node_id, node_title, params, sub_flow_start):
+        self.engine = engine
+        self.node_id = node_id
+        self.node_title = node_title
+        self.params = params
+        self.sub_flow_start = sub_flow_start
+        self._stop_event = threading.Event()
+        self._thread = threading.Thread(
+            target=self._run,
+            name=f'listener-{node_id}',
+            daemon=True
+        )
+        self.trigger_count = 0
+
+    def start(self):
+        self._thread.start()
+
+    def request_stop(self):
+        self._stop_event.set()
+
+    def join(self, timeout=None):
+        self._thread.join(timeout=timeout)
+
+    def _run(self):
+        engine = self.engine
+        interval = int(self.params.get('interval', 500)) / 1000.0
+        cooldown = int(self.params.get('cooldown', 2000)) / 1000.0
+        action_on_main = self.params.get('action_on_main', 'pause')
+        engine.log_message.emit('info', f'[监听] {self.node_title} 开始监控')
+
+        while not self._stop_event.is_set() and not engine.stop_requested:
+            try:
+                triggered, tx, ty = self._check_condition()
+                if triggered:
+                    self.trigger_count += 1
+                    engine.log_message.emit('info', f'[监听] {self.node_title} 第{self.trigger_count}次触发 ({tx},{ty})')
+                    engine.variables['listener_triggered'] = True
+                    engine.variables['trigger_x'] = tx
+                    engine.variables['trigger_y'] = ty
+
+                    if action_on_main == 'pause':
+                        self._pause_main_and_execute()
+                    elif action_on_main == 'stop':
+                        for lt in list(engine._listener_threads):
+                            if lt is not self:
+                                lt.request_stop()
+                        self._execute_sub_flow()  # 先执行子流程
+                        engine.stop_requested = True  # 子流程完成后再停止
+                        break
+
+                    self._interruptible_sleep(cooldown)
+                else:
+                    self._interruptible_sleep(interval)
+            except Exception as e:
+                engine.log_message.emit('error', f'[监听] {self.node_title} 出错: {e}')
+                self._interruptible_sleep(interval)
+
+        engine.log_message.emit('info', f'[监听] {self.node_title} 已停止')
+        if self in engine._listener_threads:
+            engine._listener_threads.remove(self)
+
+    def _check_condition(self):
+        """检测屏幕条件，返回 (triggered, x, y)"""
+        import pyautogui, cv2, numpy as np
+        listen_type = self.params.get('listen_type', 'image')
+        region = self.params.get('region', [0, 0, 1920, 1080])
+        if not isinstance(region, (list, tuple)) or len(region) != 4:
+            region = [0, 0, 1920, 1080]
+        region_tuple = tuple(int(v) for v in region)
+
+        screenshot = pyautogui.screenshot(region=region_tuple)
+        screenshot = cv2.cvtColor(np.array(screenshot), cv2.COLOR_RGB2BGR)
+
+        if listen_type == 'image':
+            image_path = self.params.get('image_path', '')
+            threshold = float(self.params.get('threshold', 0.8))
+            if not image_path:
+                return False, 0, 0
+            file_bytes = np.fromfile(image_path, dtype=np.uint8)
+            template = cv2.imdecode(file_bytes, cv2.IMREAD_COLOR)
+            if template is None:
+                return False, 0, 0
+            result = cv2.matchTemplate(screenshot, template, cv2.TM_CCOEFF_NORMED)
+            _, max_val, _, max_loc = cv2.minMaxLoc(result)
+            if max_val >= threshold:
+                x = max_loc[0] + template.shape[1] // 2 + region_tuple[0]
+                y = max_loc[1] + template.shape[0] // 2 + region_tuple[1]
+                return True, x, y
+        elif listen_type == 'color':
+            color_str = self.params.get('color', '#FF0000').lstrip('#')
+            tolerance = int(self.params.get('color_tolerance', 10))
+            r, g, b = int(color_str[0:2], 16), int(color_str[2:4], 16), int(color_str[4:6], 16)
+            lower = np.array([max(0, b - tolerance), max(0, g - tolerance), max(0, r - tolerance)])
+            upper = np.array([min(255, b + tolerance), min(255, g + tolerance), min(255, r + tolerance)])
+            mask = cv2.inRange(screenshot, lower, upper)
+            coords = cv2.findNonZero(mask)
+            if coords is not None:
+                x = int(coords[0][0][0]) + region_tuple[0]
+                y = int(coords[0][0][1]) + region_tuple[1]
+                return True, x, y
+        return False, 0, 0
+
+    def _pause_main_and_execute(self):
+        engine = self.engine
+        was_paused = engine.is_paused
+        if engine.is_running and not engine.is_paused:
+            engine.is_paused = True
+            engine.log_message.emit('info', f'[监听] {self.node_title} 已暂停主流程')
+        try:
+            self._execute_sub_flow()
+        except Exception as e:
+            engine.log_message.emit('error', f'[监听] 子流程执行出错: {e}')
+        if not was_paused and engine.is_paused and not engine.stop_requested:
+            engine.is_paused = False
+            engine.execution_resumed.emit()
+            engine.log_message.emit('info', f'[监听] {self.node_title} 已恢复主流程')
+
+    def _execute_sub_flow(self):
+        """在监听线程中执行子流程节点链（独立执行，不影响主引擎状态）"""
+        engine = self.engine
+        current_node = self.sub_flow_start
+        while current_node and not self._stop_event.is_set() and not engine.stop_requested:
+            node_id = current_node['id']
+            node_type = current_node['type']
+            engine.node_started.emit(node_id, node_type)
+            try:
+                result = engine._execute_node(current_node)
+                engine.node_finished.emit(node_id, node_type, result)
+                if node_type in ('break', 'continue'):
+                    break
+                if node_type == 'condition':
+                    current_node = engine._get_condition_next_node(current_node, result)
+                    continue
+                if node_type == 'if_image':
+                    current_node = engine._get_if_image_next_node(current_node, result)
+                    continue
+            except Exception as e:
+                engine.log_message.emit('error', f'[监听子流程] {current_node.get("title", node_id)} 失败: {e}')
+                engine.execution_error.emit(node_id, str(e))
+                break
+            current_node = engine._find_next_node(node_id)
+
+    def _interruptible_sleep(self, seconds):
+        deadline = time.time() + seconds
+        while time.time() < deadline:
+            if self._stop_event.is_set() or self.engine.stop_requested:
+                break
+            time.sleep(min(0.05, deadline - time.time()))
 
 
 class WorkflowEngine(QObject):
@@ -42,6 +196,9 @@ class WorkflowEngine(QObject):
         self._test_mode = False  # 测试模式标志
         self._test_target_node_id = None  # 单节点测试的目标节点
         self._branch_choices = {}  # 分支选择 {node_id: port_index}
+
+        # 异步监听线程管理
+        self._listener_threads = []
 
         # 禁用 PyAutoGUI 的 fail-safe（允许鼠标移动到屏幕角落）
         try:
@@ -94,6 +251,9 @@ class WorkflowEngine(QObject):
         if not self.is_running:
             return
         self.stop_requested = True
+        # 通知所有监听线程停止
+        for lt in list(self._listener_threads):
+            lt.request_stop()
         self.log_message.emit('info', '请求停止执行')
 
     def pause(self):
@@ -113,9 +273,18 @@ class WorkflowEngine(QObject):
     def _execute_workflow(self):
         """执行工作流主逻辑"""
         try:
+            # 启动所有异步监听节点（独立后台线程，先于主流程启动）
+            self._start_async_listeners()
+
             # 找到起始节点
             start_nodes = self._find_start_nodes()
             if not start_nodes:
+                if self._listener_threads:
+                    # 只有异步监听节点，保持引擎运行直到手动停止
+                    self.log_message.emit('info', '无主流程，等待异步监听中...')
+                    while not self.stop_requested and self._listener_threads:
+                        time.sleep(0.1)
+                    return
                 self.log_message.emit('error', '没有找到起始节点')
                 self._finish_execution()
                 return
@@ -210,6 +379,8 @@ class WorkflowEngine(QObject):
 
     def _execute_node(self, node):
         """执行单个节点"""
+        if self.stop_requested:
+            return None
         node_type = node['type']
         params = node.get('params', {})
 
@@ -278,6 +449,32 @@ class WorkflowEngine(QObject):
             if node['type'].startswith('start_'):
                 start_nodes.append(node)
         return start_nodes
+
+    def _start_async_listeners(self):
+        """找到所有 async_listener 节点并启动独立监听线程"""
+        for node in self.nodes.values():
+            if node['type'] == 'async_listener':
+                sub_flow_start = self._find_next_node_from_port(node['id'], port_index=0)
+                if sub_flow_start is None:
+                    self.log_message.emit('warning', f'异步监听节点 "{node.get("title")}" 未连接触发流程，跳过')
+                    continue
+                params = {}
+                for key, param_def in node.get('params', {}).items():
+                    if isinstance(param_def, dict):
+                        params[key] = param_def.get('value', param_def.get('default'))
+                    else:
+                        params[key] = param_def
+
+                listener = ListenerContext(
+                    engine=self,
+                    node_id=node['id'],
+                    node_title=node.get('title', '异步监听'),
+                    params=params,
+                    sub_flow_start=sub_flow_start
+                )
+                self._listener_threads.append(listener)
+                listener.start()
+                self.log_message.emit('info', f'异步监听已启动: {node.get("title")}')
 
     def _find_next_node(self, current_node_id, port_index=0):
         """找到从指定节点第port_index个输出口连接的下一个节点"""
@@ -501,6 +698,13 @@ class WorkflowEngine(QObject):
 
     def _finish_execution(self):
         """完成执行"""
+        # 停止并等待所有监听线程
+        for lt in list(self._listener_threads):
+            lt.request_stop()
+        for lt in list(self._listener_threads):
+            lt.join(timeout=2.0)
+        self._listener_threads.clear()
+
         self.is_running = False
         self.is_paused = False
         self.current_node_id = None
@@ -543,6 +747,8 @@ class WorkflowEngine(QObject):
         """鼠标移动"""
         try:
             import pyautogui
+            if self.stop_requested:
+                return None
             x = params.get('x', 0)
             y = params.get('y', 0)
 
@@ -568,6 +774,8 @@ class WorkflowEngine(QObject):
         """鼠标点击"""
         try:
             import pyautogui
+            if self.stop_requested:
+                return None
             import random
 
             button = params.get('button', 'left')
@@ -588,6 +796,8 @@ class WorkflowEngine(QObject):
                 pyautogui.click(x, y, button=button)
             else:
                 # 使用当前鼠标位置
+                if self.stop_requested:
+                    return None
                 if random_offset and random_offset > 0:
                     # 获取当前位置并添加偏移
                     current_x, current_y = pyautogui.position()
@@ -607,8 +817,14 @@ class WorkflowEngine(QObject):
         """键盘按键"""
         try:
             import pyautogui
+            if self.stop_requested:
+                return None
             key = params.get('key', 'enter')
-            pyautogui.press(key)
+            if '+' in key:
+                keys = [k.strip() for k in key.split('+')]
+                pyautogui.hotkey(*keys)
+            else:
+                pyautogui.press(key)
             return {'key': key}
         except Exception as e:
             raise Exception(f'按键失败: {e}')
@@ -617,6 +833,8 @@ class WorkflowEngine(QObject):
         """键盘输入"""
         try:
             import pyautogui
+            if self.stop_requested:
+                return None
             text = params.get('text', '')
             pyautogui.typewrite(text)
             return {'text': text}
@@ -643,6 +861,8 @@ class WorkflowEngine(QObject):
             import cv2
             import numpy as np
             import pyautogui
+            if self.stop_requested:
+                return None
 
             image_path = params.get('image_path', '')
             threshold = float(params.get('threshold', 0.8))
@@ -690,12 +910,16 @@ class WorkflowEngine(QObject):
                 auto_move = params.get('auto_move', False)
                 offset_x = int(params.get('offset_x', 0))
                 offset_y = int(params.get('offset_y', 0))
+                random_offset = int(params.get('random_offset', 7) or 0)
                 auto_click = params.get('auto_click', False)
                 click_button = params.get('click_button', 'left')
                 click_delay = int(params.get('click_delay', 0))
 
                 target_x = x + offset_x
                 target_y = y + offset_y
+                if random_offset > 0:
+                    target_x += random.randint(-random_offset, random_offset)
+                    target_y += random.randint(-random_offset, random_offset)
 
                 # 自动移动鼠标
                 if auto_move:
@@ -733,6 +957,8 @@ class WorkflowEngine(QObject):
             import cv2
             import numpy as np
             import pyautogui
+            if self.stop_requested:
+                return None
 
             color = params.get('color', '#FF0000')
             tolerance = int(params.get('tolerance', 10))

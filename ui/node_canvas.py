@@ -188,6 +188,8 @@ class NodeItem(QGraphicsRectItem):
                 labels = ["循环", "结束"]
             elif self.node_type == "if_image":
                 labels = ["找到", "未找到"]
+            elif self.node_type == "async_listener":
+                labels = ["触发后"]
 
             for i in range(num_outputs):
                 port_y = body_start + (body_height / num_outputs) * (i + 0.5)
@@ -355,9 +357,16 @@ class NodeCanvas(QGraphicsView):
         # 撤销重做
         self._history = []
         self._history_index = -1
+        self._restoring = False
+        self._dragging_node = None
+        self._drag_start_pos = None
+        self._batch_depth = 0
 
         # 接受拖拽
         self.setAcceptDrops(True)
+
+        # 推入初始空状态
+        self._push_history()
 
     def drawBackground(self, painter, rect):
         """绘制背景网格"""
@@ -405,15 +414,15 @@ class NodeCanvas(QGraphicsView):
             except Exception as e:
                 print(f"创建节点失败: {e}")
 
-    def add_node(self, node_data, x, y):
+    def add_node(self, node_data, x, y, node_id=None):
         """添加节点"""
-        node_id = str(uuid.uuid4())[:8]
+        node_id = node_id or str(uuid.uuid4())[:8]
 
         node = NodeItem(
             node_id=node_id,
             node_type=node_data['type'],
-            title=node_data['name'],
-            color=node_data['color'],
+            title=node_data.get('name', node_data.get('title', '')),
+            color=node_data.get('color', '#607D8B'),
             params=node_data.get('params', {}),
             x=x - 80,  # 居中
             y=y - 40,
@@ -427,6 +436,7 @@ class NodeCanvas(QGraphicsView):
         node.setSelected(True)
         self._on_selection_changed()
         self.canvas_changed.emit()
+        self._push_history()
 
         return node
 
@@ -450,6 +460,14 @@ class NodeCanvas(QGraphicsView):
                 # 点击空白处时清除错误高亮状态
                 if item is None:
                     self.clear_execution_highlights()
+                # 记录节点拖拽起始位置（用于撤销）
+                node_item = next((i for i in items if isinstance(i, NodeItem)), None)
+                if node_item:
+                    self._dragging_node = node_item
+                    self._drag_start_pos = node_item.pos()
+                else:
+                    self._dragging_node = None
+                    self._drag_start_pos = None
                 super().mousePressEvent(event)
         else:
             super().mousePressEvent(event)
@@ -490,6 +508,13 @@ class NodeCanvas(QGraphicsView):
 
         # 更新选择
         self._on_selection_changed()
+
+        # 检测节点是否被移动，推入历史
+        if self._dragging_node is not None:
+            if self._dragging_node.pos() != self._drag_start_pos:
+                self._push_history()
+            self._dragging_node = None
+            self._drag_start_pos = None
 
     def wheelEvent(self, event):
         """滚轮缩放"""
@@ -562,6 +587,7 @@ class NodeCanvas(QGraphicsView):
                     end_port.connections.append(self._drag_connection)
 
                 self.canvas_changed.emit()
+                self._push_history()
                 self._drag_connection = None
                 return
 
@@ -575,6 +601,7 @@ class NodeCanvas(QGraphicsView):
             self.connections.remove(connection)
         self.scene.removeItem(connection)
         self.canvas_changed.emit()
+        self._push_history()
 
     def get_node_connections(self, node):
         """获取节点的所有连线"""
@@ -674,6 +701,7 @@ class NodeCanvas(QGraphicsView):
 
     def _delete_node(self, item):
         """删除节点及其相关连线"""
+        self._batch_depth += 1
         # 删除相关连线
         connections_to_remove = []
         for conn in self.connections:
@@ -686,7 +714,9 @@ class NodeCanvas(QGraphicsView):
         # 删除节点
         del self.nodes[item.node_id]
         self.scene.removeItem(item)
+        self._batch_depth -= 1
         self.canvas_changed.emit()
+        self._push_history()
 
     def _add_node_at_mouse(self, node_data, pos):
         """在鼠标位置添加节点"""
@@ -699,6 +729,7 @@ class NodeCanvas(QGraphicsView):
         self.nodes.clear()
         self.connections.clear()
         self.canvas_changed.emit()
+        self._push_history()
 
     def select_all(self):
         """全选节点"""
@@ -707,6 +738,7 @@ class NodeCanvas(QGraphicsView):
 
     def delete_selected(self):
         """删除选中"""
+        self._batch_depth += 1
         # 先删除选中的连线
         for item in list(self.scene.selectedItems()):
             if isinstance(item, ConnectionItem):
@@ -717,17 +749,93 @@ class NodeCanvas(QGraphicsView):
             if isinstance(item, NodeItem):
                 self._delete_node(item)
 
+        self._batch_depth -= 1
+        self.canvas_changed.emit()
+        self._push_history()
+
+    def _push_history(self):
+        """推入当前画布状态到历史栈"""
+        if self._restoring or self._batch_depth > 0:
+            return
+        import copy
+        snapshot = copy.deepcopy(self.get_workflow_data())
+        # 截断 redo 分支
+        self._history = self._history[:self._history_index + 1]
+        self._history.append(snapshot)
+        self._history_index = len(self._history) - 1
+        # 限制历史记录上限（50 步）
+        if len(self._history) > 50:
+            self._history = self._history[-50:]
+            self._history_index = len(self._history) - 1
+
+    def _find_port(self, node, port_index, is_output):
+        """在节点子项中查找指定端口"""
+        for item in node.childItems():
+            if (isinstance(item, PortItem)
+                    and getattr(item, 'port_index', 0) == port_index
+                    and item.is_input == (not is_output)):
+                return item
+        return None
+
+    def load_workflow_data(self, data):
+        """从快照恢复画布（专供撤销/重做使用）"""
+        import copy
+        from .node_library import NodeLibraryPanel
+        library = NodeLibraryPanel()
+
+        self.clear_canvas()
+
+        for node_data in data.get('nodes', []):
+            node_type = node_data.get('type')
+            node_def = library.get_node_definition(node_type)
+            if node_def:
+                node_def_copy = copy.deepcopy(node_def)
+                node_def_copy['name'] = node_data.get('title', node_def_copy.get('name', ''))
+                node_def_copy['params'] = copy.deepcopy(node_data.get('params', {}))
+                if 'ports' in node_data:
+                    node_def_copy['ports'] = node_data['ports']
+                self.add_node(
+                    node_def_copy,
+                    node_data['x'] + 80,
+                    node_data['y'] + 40,
+                    node_id=node_data['id']
+                )
+
+        for conn_data in data.get('connections', []):
+            from_node = self.nodes.get(conn_data['from'])
+            to_node = self.nodes.get(conn_data['to'])
+            if not (from_node and to_node):
+                continue
+            from_port = self._find_port(from_node, conn_data['from_port'], is_output=True)
+            to_port = self._find_port(to_node, conn_data['to_port'], is_output=False)
+            if from_port and to_port:
+                conn = ConnectionItem(from_port, to_port,
+                                      start_port_index=conn_data['from_port'])
+                conn.end_port_index = conn_data['to_port']
+                conn.update_path()
+                self.scene.addItem(conn)
+                self.connections.append(conn)
+                from_port.connections.append(conn)
+                to_port.connections.append(conn)
+
+        self._on_selection_changed()
         self.canvas_changed.emit()
 
     def undo(self):
         """撤销"""
-        # TODO: 实现撤销功能
-        pass
+        if self._history_index > 0:
+            self._history_index -= 1
+            self._restoring = True
+            self.load_workflow_data(self._history[self._history_index])
+            self._restoring = False
 
     def redo(self):
         """重做"""
-        # TODO: 实现重做功能
-        pass
+        if self._history_index < len(self._history) - 1:
+            self._history_index += 1
+            self._restoring = True
+            self.load_workflow_data(self._history[self._history_index])
+            self._restoring = False
 
     def connect_engine_signals(self, engine):
         """连接引擎信号以显示执行状态"""

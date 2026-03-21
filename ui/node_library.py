@@ -156,6 +156,25 @@ class NodeLibraryPanel(QWidget):
                     "params": {
                         "hotkey": {"type": "string", "default": "F6", "label": "热键"}
                     }
+                },
+                {
+                    "type": "async_listener",
+                    "name": "异步监听",
+                    "icon": "👁️",
+                    "desc": "并行监控屏幕，检测到图片或颜色时触发，可暂停或停止主流程",
+                    "color": "#E91E63",
+                    "ports": {"inputs": 0, "outputs": 1},
+                    "params": {
+                        "listen_type": {"type": "select", "default": "image", "label": "监听类型", "options": ["image", "color"]},
+                        "image_path": {"type": "file", "default": "", "label": "图片路径（image类型）"},
+                        "threshold": {"type": "float", "default": 0.8, "label": "匹配阈值", "min": 0.0, "max": 1.0},
+                        "color": {"type": "color", "default": "#FF0000", "label": "目标颜色（color类型）"},
+                        "color_tolerance": {"type": "int", "default": 10, "label": "颜色容差", "min": 0, "max": 255},
+                        "region": {"type": "region", "default": [0, 0, 1920, 1080], "label": "监听区域"},
+                        "interval": {"type": "int", "default": 500, "label": "检测间隔(毫秒)", "min": 50, "max": 10000},
+                        "action_on_main": {"type": "select", "default": "pause", "label": "触发时对主流程的操作", "options": ["pause", "stop"]},
+                        "cooldown": {"type": "int", "default": 2000, "label": "触发后冷却(毫秒)", "min": 0, "max": 60000}
+                    }
                 }
             ],
             "动作": [
@@ -227,10 +246,11 @@ class NodeLibraryPanel(QWidget):
                         "region": {"type": "region", "default": [0, 0, 1920, 1080], "label": "查找区域"},
                         "true_label": {"type": "string", "default": "找到", "label": "找到分支标签"},
                         "false_label": {"type": "string", "default": "未找到", "label": "未找到分支标签"},
-                        "auto_move": {"type": "boolean", "default": False, "label": "找到后自动移动鼠标"},
+                        "auto_move": {"type": "boolean", "default": True, "label": "找到后自动移动鼠标"},
                         "offset_x": {"type": "int", "default": 0, "label": "X偏移"},
                         "offset_y": {"type": "int", "default": 0, "label": "Y偏移"},
-                        "auto_click": {"type": "boolean", "default": False, "label": "找到后自动点击"},
+                        "random_offset": {"type": "int", "default": 7, "min": 0, "max": 100, "label": "随机偏移范围"},
+                        "auto_click": {"type": "boolean", "default": True, "label": "找到后自动点击"},
                         "click_button": {"type": "select", "default": "left", "label": "点击按钮", "options": ["left", "right", "double"]},
                         "click_delay": {"type": "int", "default": 0, "min": 0, "label": "点击前延时(毫秒)"}
                     },
