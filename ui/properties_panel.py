@@ -11,6 +11,7 @@ from PyQt5.QtCore import Qt, pyqtSignal
 from PyQt5.QtGui import QColor
 from .screenshot_tool import ScreenshotWidget
 from .image_test_widget import ImageTestWidget
+from .coordinate_drag_button import CoordinateDragButton
 
 
 class PropertiesPanel(QWidget):
@@ -45,6 +46,7 @@ class PropertiesPanel(QWidget):
 
         # 默认显示
         self._show_empty_state()
+
 
     def _show_empty_state(self):
         """显示空状态"""
@@ -110,10 +112,27 @@ class PropertiesPanel(QWidget):
             form_layout = QFormLayout(form_group)
             form_layout.setSpacing(10)
 
+            # 预处理：找出成对的坐标参数
+            processed = set()
             for param_name, param_def in params.items():
-                widget = self._create_param_widget(param_name, param_def)
-                if widget:
-                    form_layout.addRow(param_def.get('label', param_name), widget)
+                if param_name in processed:
+                    continue
+
+                # 检测 x/y 成对出现的情况
+                if param_name == 'x' and 'y' in params:
+                    widget = self._create_combined_coord_widget(
+                        params['x'], params['y']
+                    )
+                    form_layout.addRow("坐标:", widget)
+                    processed.add('x')
+                    processed.add('y')
+                elif param_name == 'y' and 'x' in params:
+                    # y 已经在 x 的处理中创建了，跳过
+                    continue
+                else:
+                    widget = self._create_param_widget(param_name, param_def)
+                    if widget:
+                        form_layout.addRow(param_def.get('label', param_name), widget)
 
             # 条件节点添加语法提示
             if node_type == 'condition':
@@ -165,6 +184,10 @@ class PropertiesPanel(QWidget):
             default_value = param_def.get('default', '')
 
         if param_type == 'string':
+            # 检查是否为坐标参数（x 或 y），即使是 string 类型也添加拖拽按钮
+            if param_name in ('x', 'y'):
+                return self._create_coord_widget(param_name, param_def, default_value, string_mode=True)
+
             widget = QLineEdit()
             widget.setText(str(default_value))
             widget.setProperty('param_name', param_name)
@@ -172,6 +195,10 @@ class PropertiesPanel(QWidget):
             return widget
 
         elif param_type == 'int':
+            # 检查是否为坐标参数（x 或 y），需要添加拖拽按钮
+            if param_name in ('x', 'y'):
+                return self._create_coord_widget(param_name, param_def, default_value)
+
             # 检查是否为可选参数（允许为空）
             is_optional = param_def.get('optional', False)
             if is_optional:
@@ -296,6 +323,137 @@ class PropertiesPanel(QWidget):
 
         return None
 
+    def _create_coord_widget(self, param_name, param_def, default_value, string_mode=False):
+        """创建带拖拽按钮的坐标输入控件
+
+        Args:
+            param_name: 参数名 (x 或 y)
+            param_def: 参数定义
+            default_value: 默认值
+            string_mode: 是否为字符串模式（支持变量如 $find_x）
+        """
+        widget = QWidget()
+        layout = QHBoxLayout(widget)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(5)
+
+        if string_mode:
+            # 字符串模式：使用 QLineEdit 支持变量
+            line_edit = QLineEdit()
+            line_edit.setText(str(default_value) if default_value is not None else "0")
+            line_edit.setProperty('param_name', param_name)
+            line_edit.textChanged.connect(self._on_param_changed)
+            layout.addWidget(line_edit)
+
+            # 创建拖拽按钮
+            drag_btn = CoordinateDragButton()
+            drag_btn.setProperty('target_param', param_name)
+            # 连接信号到输入框的 setText
+            drag_btn.coordinate_captured.connect(
+                lambda x, y, p=param_name, le=line_edit: le.setText(str(x if p == 'x' else y))
+            )
+            layout.addWidget(drag_btn)
+        else:
+            # 数字模式：使用 QSpinBox
+            spin_box = QSpinBox()
+            spin_box.setRange(param_def.get('min', -999999), param_def.get('max', 999999))
+            spin_box.setValue(int(default_value) if default_value is not None else 0)
+            spin_box.setProperty('param_name', param_name)
+            spin_box.valueChanged.connect(self._on_param_changed)
+            layout.addWidget(spin_box)
+
+            # 创建拖拽按钮
+            drag_btn = CoordinateDragButton()
+            drag_btn.setProperty('target_param', param_name)
+            # 连接信号到输入框的 setValue
+            drag_btn.coordinate_captured.connect(
+                lambda x, y, p=param_name, s=spin_box: s.setValue(x if p == 'x' else y)
+            )
+            layout.addWidget(drag_btn)
+
+        return widget
+
+    def _create_combined_coord_widget(self, x_def, y_def):
+        """创建合并的X/Y坐标控件，一个拖拽按钮同时设置XY"""
+        widget = QWidget()
+        layout = QHBoxLayout(widget)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(8)
+
+        # 判断是 string 类型（mouse_move）还是 int 类型（mouse_click）
+        x_type = x_def.get('type', 'int')
+        y_type = y_def.get('type', 'int')
+
+        # 获取默认值
+        x_value = x_def.get('value')
+        if x_value is None or isinstance(x_value, dict):
+            x_value = x_def.get('default', '0' if x_type == 'string' else 0)
+
+        y_value = y_def.get('value')
+        if y_value is None or isinstance(y_value, dict):
+            y_value = y_def.get('default', '0' if y_type == 'string' else 0)
+
+        # X 标签和输入框
+        x_label = QLabel("X:")
+        layout.addWidget(x_label)
+
+        if x_type == 'string':
+            self.x_input = QLineEdit()
+            self.x_input.setText(str(x_value))
+            self.x_input.setProperty('param_name', 'x')
+            self.x_input.textChanged.connect(self._on_param_changed)
+            layout.addWidget(self.x_input)
+        else:
+            self.x_input = QSpinBox()
+            self.x_input.setRange(x_def.get('min', -999999), x_def.get('max', 999999))
+            if x_value is not None:
+                self.x_input.setValue(int(x_value))
+            self.x_input.setProperty('param_name', 'x')
+            self.x_input.valueChanged.connect(self._on_param_changed)
+            layout.addWidget(self.x_input)
+
+        # Y 标签和输入框
+        y_label = QLabel("Y:")
+        layout.addWidget(y_label)
+
+        if y_type == 'string':
+            self.y_input = QLineEdit()
+            self.y_input.setText(str(y_value))
+            self.y_input.setProperty('param_name', 'y')
+            self.y_input.textChanged.connect(self._on_param_changed)
+            layout.addWidget(self.y_input)
+        else:
+            self.y_input = QSpinBox()
+            self.y_input.setRange(y_def.get('min', -999999), y_def.get('max', 999999))
+            if y_value is not None:
+                self.y_input.setValue(int(y_value))
+            self.y_input.setProperty('param_name', 'y')
+            self.y_input.valueChanged.connect(self._on_param_changed)
+            layout.addWidget(self.y_input)
+
+        # 拖拽按钮（同时设置XY）
+        drag_btn = CoordinateDragButton()
+        drag_btn.setToolTip("按住拖拽到目标位置，松开同时捕获X和Y坐标")
+        drag_btn.coordinate_captured.connect(
+            lambda x, y: self._on_combined_coord_captured(x, y)
+        )
+        layout.addWidget(drag_btn)
+
+        return widget
+
+    def _on_combined_coord_captured(self, x, y):
+        """处理合并坐标捕获"""
+        if hasattr(self, 'x_input') and hasattr(self, 'y_input'):
+            if isinstance(self.x_input, QLineEdit):
+                self.x_input.setText(str(x))
+            else:
+                self.x_input.setValue(x)
+
+            if isinstance(self.y_input, QLineEdit):
+                self.y_input.setText(str(y))
+            else:
+                self.y_input.setValue(y)
+
     def _browse_file(self, line_edit):
         """浏览文件"""
         file_path, _ = QFileDialog.getOpenFileName(
@@ -348,6 +506,37 @@ class PropertiesPanel(QWidget):
         # 处理 region 类型
         if param_type == 'region':
             return self._get_region_value()
+
+        # 特殊处理组合坐标控件中的 x 和 y
+        if param_name in ('x', 'y'):
+            # 查找组合控件中的输入框
+            if hasattr(self, 'x_input') and hasattr(self, 'y_input'):
+                if param_name == 'x':
+                    if isinstance(self.x_input, QLineEdit):
+                        return self.x_input.text().strip()
+                    else:
+                        return self.x_input.value()
+                else:  # y
+                    if isinstance(self.y_input, QLineEdit):
+                        return self.y_input.text().strip()
+                    else:
+                        return self.y_input.value()
+
+        # 特殊处理坐标参数 (x, y) - 它们可能在 QWidget 容器内（旧版兼容）
+        if param_name in ('x', 'y'):
+            # 查找 QWidget 容器
+            for child in self.content_widget.findChildren(QWidget):
+                if child.property('param_name') == param_name:
+                    # 在容器内查找 QLineEdit 或 QSpinBox
+                    for inner_child in child.findChildren(QWidget):
+                        if isinstance(inner_child, QLineEdit):
+                            text = inner_child.text().strip()
+                            if param_type == 'int':
+                                return int(text) if text else None
+                            return text
+                        elif isinstance(inner_child, QSpinBox):
+                            return inner_child.value()
+                    break
 
         # 查找对应的控件
         for child in self.content_widget.findChildren(QWidget):
@@ -439,13 +628,32 @@ class PropertiesPanel(QWidget):
 
     def _on_test_with_current_params(self):
         """使用当前界面参数值进行测试"""
-        # 动态收集当前参数值
+        # 动态收集当前参数值 - 基本参数
         image_path = self._get_widget_value('image_path', 'file') or ''
         threshold = self._get_widget_value('threshold', 'float') or 0.8
         region = self._get_region_value() or [0, 0, 1920, 1080]
 
-        # 更新测试控件参数
+        # 收集高级参数
+        offset_x = self._get_widget_value('offset_x', 'int') or 0
+        offset_y = self._get_widget_value('offset_y', 'int') or 0
+        random_offset = self._get_widget_value('random_offset', 'int') or 0
+        auto_move = self._get_widget_value('auto_move', 'boolean') or False
+        auto_click = self._get_widget_value('auto_click', 'boolean') or False
+        click_button = self._get_widget_value('click_button', 'select') or 'left'
+        click_delay = self._get_widget_value('click_delay', 'int') or 0
+
+        # 更新测试控件基本参数
         self.image_test_widget.set_params(image_path, threshold, region)
+        # 设置高级参数
+        self.image_test_widget.set_advanced_params(
+            offset_x=offset_x,
+            offset_y=offset_y,
+            random_offset=random_offset,
+            auto_move=auto_move,
+            auto_click=auto_click,
+            click_button=click_button,
+            click_delay=click_delay
+        )
         # 执行测试
         self.image_test_widget._on_test()
 
